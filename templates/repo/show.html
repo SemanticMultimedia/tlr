@@ -80,7 +80,7 @@ curl -X DELETE \
           You can request a certain resource from this repository by specifying its URI in the <code>key</code> query parameter.
           Specify the date and time for the resource state you are interested in by passing an <code>Accept-Datetime</code> HTTP header, for instance:
         </p>
-        <pre><code class="bash">curl -H "Accept-Datetime: Thu, 11 June 2015 09:45 GMT" "{{ api_url }}?key=http://..."</code></pre>
+        <pre><code class="bash">curl -H "Accept-Datetime: Thu, 11 June 2015 09:45:00 GMT" "{{ api_url }}?key=http://..."</code></pre>
         <p>In order to link to a certain resource state, you may also provide the datetime argument as a query parameter:</p>
         <pre><code class="bash">curl "{{ api_url }}?key=http://...&datetime=2015-06-11-09:45:00"</code></pre>
         <p>To find out when a resource was changed, query for the timemap:</p>
