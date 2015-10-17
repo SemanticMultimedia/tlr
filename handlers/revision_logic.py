@@ -114,10 +114,8 @@ def create_blobs(repo, sha, chain):
         .naive())
     return blobs
 
-def load_blobs(repo, sha, chain):
-    # Load the data required in order to restore the resource state.    
-    blobs = create_blobs(repo, sha, chain)
-    
+def load_blobs(blobs, repo, sha, chain):
+    # doesnt work in api
     if len(chain) == 1:
             # Special case, where we can simply return
             # the blob data of the snapshot.

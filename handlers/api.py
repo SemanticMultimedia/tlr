@@ -124,12 +124,30 @@ class RepoHandler(BaseHandler):
                 raise HTTPError(404)
 
             # Load the data required in order to restore the resource state.
-            try:
-                blobs = revision_logic.load_blobs(repo, sha, chain)
-            except ValueError, val:
-                return self.finish(val)
-            
-            self.write(join(blobs, "\n"))
+            blobs = revision_logic.create_blobs(repo, sha, chain)
+            if len(chain) == 1:
+                # Special case, where we can simply return
+                # the blob data of the snapshot.
+                snap = blobs.first().data
+                return self.finish(revision_logic.decompress(snap))
+
+            stmts = set()
+
+            for i, blob in enumerate(blobs.iterator()):
+                data = decompress(blob.data)
+
+                if i == 0:
+                    # Base snapshot for the delta chain
+                    stmts.update(data.splitlines())
+                else:
+                    for line in data.splitlines():
+                        mode, stmt = line[0], line[2:]
+                        if mode == "A":
+                            stmts.add(stmt)
+                        else:
+                            stmts.discard(stmt)
+
+            self.write(join(stmts, "\n"))
         elif key and timemap:
             # Generate a timemap containing historic change information
             # for the requested key. The timemap is in the default link-format
