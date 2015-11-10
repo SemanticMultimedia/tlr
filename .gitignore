@@ -9,3 +9,6 @@ venv/
 
 # Python
 *.py[cod]
+
+# IntelliJ
+.idea/
