@@ -17,6 +17,9 @@ from peewee import IntegrityError, SQL, fn
 # TODO: Empirically determine a good value with real data/statistics.
 SNAPF = 10.0
 
+# Pagination size for indexes (number of resource URIs per page)
+INDEX_PAGE_SIZE = 1000
+
 
 def compress(s):
     return zlib.compress(s)

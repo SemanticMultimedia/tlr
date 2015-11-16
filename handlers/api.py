@@ -1,14 +1,13 @@
 import datetime
 import functools
-import hashlib
 import string
-import time
-import zlib
+
+import json
+import traceback
 
 from tornado.web import HTTPError
 from tornado.escape import url_escape, json_encode
-from peewee import IntegrityError, SQL, fn
-import RDF
+#from peewee import IntegrityError, SQL, fn
 
 from models import User, Token, Repo, HMap, CSet, Blob
 from handlers import RequestHandler
@@ -35,13 +34,11 @@ def date(s, fmt):
 def now():
     return datetime.datetime.utcnow()
 
-# Pagination size for indexes (number of resource URIs per page)
-INDEX_PAGE_SIZE = 1000
-
 # TODO: Tune zlib compression parameters `level`, `wbits`, `bufsize`?
 
 def join(parts, sep):
     return string.joinfields(parts, sep)
+
 
 class BaseHandler(RequestHandler):
     """Base class for all web API handlers."""
@@ -61,19 +58,98 @@ class BaseHandler(RequestHandler):
     def check_xsrf_cookie(self):
         pass
 
-class RepoHandler(BaseHandler):
-    """Processes repository calls: Push, timegate, memento, timemap etc."""
-    # def head(self, username, reponame):
-    #     pass
+    def write_error(self, status_code, **kwargs):
+        self.set_header('Content-Type', 'text/json')
+        if self.settings.get("serve_traceback") and "exc_info" in kwargs:
+            # in debug mode, try to send a traceback
+            lines = []
+            for line in traceback.format_exception(*kwargs["exc_info"]):
+                lines.append(line)
+            self.finish(json.dumps({
+                'error': {
+                    'code': status_code,
+                    'message': self._reason,
+                    'traceback': lines,
+                }
+            }))
+        else:
+            self.finish(json.dumps({
+                'error': {
+                    'code': status_code,
+                    'message': self._reason,
+                }
+            }))
 
+
+class RepoHandler(BaseHandler):
+
+    # def setHeader(self, key, timemap):
+    #
+    #     if key and not timemap:
+    #         self.set_header("Content-Type", "application/n-quads")
+    #         self.set_header("Vary", "accept-datetime")
+    #
+    #         sha = revision_logic.get_shasum(key)
+    #         chain = revision_logic.get_chain(repo, sha, ts)
+    #
+    #         if chain == None:
+    #             raise HTTPError(404)
+    #
+    #         timegate_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.path)
+    #         timemap_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.uri + "&timemap=true")
+    #
+    #         #TODO: set link for "first memento", "last memento"
+    #         self.set_header("Link",
+    #                         '<%s>; rel="original"'
+    #                         ', <%s>; rel="timegate"'
+    #                         ', <%s>; rel="timemap"'
+    #                         % (key, timegate_url, timemap_url))
+    #
+    #         self.set_header("Memento-Datetime",
+    #                         chain[-1].time.strftime(RFC1123DATEFMT))
+    #     elif key and timemap:
+    #         self.set_header("Content-Type", "application/json")
+
+
+    # """Processes repository calls: Push, timegate, memento, timemap etc."""
+    # def head(self, username, reponame):
+    #     self.check_args()
+    #
+    #     timemap = self.get_query_argument("timemap", "false") == "true"
+    #     index = self.get_query_argument("index", "false") == "true"
+    #     key = self.get_query_argument("key", None)
+    #
+    #     if (index and timemap) or (index and key) or (timemap and not key):
+    #         raise HTTPError(400)
+    #
+    #     if self.get_query_argument("datetime", None):
+    #         datestr = self.get_query_argument("datetime")
+    #         ts = date(datestr, QSDATEFMT)
+    #     elif "Accept-Datetime" in self.request.headers:
+    #         datestr = self.request.headers.get("Accept-Datetime")
+    #         ts = date(datestr, RFC1123DATEFMT)
+    #     else:
+    #         ts = now()
+    #
+    #     #load repo
+    #     repo = revision_logic.load_repo(username, reponame)
+    #     if repo == None:
+    #         raise HTTPError(404)
+    #
+    #     self.setHeader()
+    #
+    #     self.finish()
+
+
+    """Processes repository calls: Push, timegate, memento, timemap etc."""
     def get(self, username, reponame):
-        
         timemap = self.get_query_argument("timemap", "false") == "true"
         index = self.get_query_argument("index", "false") == "true"
         key = self.get_query_argument("key", None)
-        
+
         if (index and timemap) or (index and key) or (timemap and not key):
-        
             raise HTTPError(400)
 
         if self.get_query_argument("datetime", None):
@@ -169,7 +245,23 @@ class RepoHandler(BaseHandler):
 
             accept = self.request.headers.get("Accept", "")
 
-            if "application/json" in accept or "*/*" in accept:
+            if "application/link-format" in accept or "*/*" in accept:
+                m = (',\n'
+                     '<' + base + '?key=' + url_escape(key) + '&datetime={0}>'
+                                                              '; rel="memento"'
+                                                              '; datetime="{1}"'
+                                                              '; type="application/n-quads"')
+
+                self.set_header("Content-Type", "application/link-format")
+
+                self.write('<' + key + '>; rel="original"')
+                self.write(m.format(first.time.strftime(QSDATEFMT),
+                                    first.time.strftime(RFC1123DATEFMT)))
+
+                for cs in csit:
+                    self.write(m.format(cs.time.strftime(QSDATEFMT),
+                                        cs.time.strftime(RFC1123DATEFMT)))
+            elif "application/json" in accept:
                 self.set_header("Content-Type", "application/json")
 
                 self.write('{"original_uri": ' + json_encode(key))
@@ -189,21 +281,8 @@ class RepoHandler(BaseHandler):
                 self.write(']}')
                 self.write('}')
             else:
-                m = (',\n'
-                    '<' + base + '?key=' + url_escape(key) + '&datetime={0}>'
-                    '; rel="memento"'
-                    '; datetime="{1}"'
-                    '; type="application/n-quads"')
+                raise HTTPError(reason='Serialization not supported.', status_code=400)
 
-                self.set_header("Content-Type", "application/link-format")
-
-                self.write('<' + key + '>; rel="original"')
-                self.write(m.format(first.time.strftime(QSDATEFMT),
-                    first.time.strftime(RFC1123DATEFMT)))
-
-                for cs in csit:
-                    self.write(m.format(cs.time.strftime(QSDATEFMT),
-                        cs.time.strftime(RFC1123DATEFMT)))
         elif index:
             # Generate an index of all URIs contained in the dataset at the
             # provided point in time or in its current state.
@@ -213,7 +292,7 @@ class RepoHandler(BaseHandler):
 
             page = int(self.get_query_argument("page", "1"))
 
-            hm = generate_index(repo, ts, page)
+            hm = revision_logic.generate_index(repo, ts, page)
 
             for h in hm:
                 self.write(h.val + "\n")
@@ -291,4 +370,4 @@ class RepoHandler(BaseHandler):
             # The resource was deleted already, return instantly.
             return self.finish()
 
-        insert_delete_changes(repo, last, ts)
+        revision_logic.insert_delete_changes(repo, last, ts)
