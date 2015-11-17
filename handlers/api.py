@@ -162,143 +162,131 @@ class RepoHandler(BaseHandler):
             ts = now()
 
         #load repo
-        repo = revision_logic.load_repo(username, reponame)
+        repo = revision_logic.get_repo(username, reponame)
         if repo == None:
             raise HTTPError(404)
 
         if key and not timemap:
-            # Recreate the resource for the given key in its latest state -
-            # if no `datetime` was provided - or in the state it was in at
-            # the time indicated by the passed `datetime` argument.
-
-            self.set_header("Content-Type", "application/n-quads")
-            self.set_header("Vary", "accept-datetime")
-
-            sha = revision_logic.get_shasum(key)
-            chain = revision_logic.get_chain(repo, sha, ts)
-
-            if chain == None:
-                raise HTTPError(404)
-
-            timegate_url = (self.request.protocol + "://" +
-                self.request.host + self.request.path)
-            timemap_url = (self.request.protocol + "://" +
-                self.request.host + self.request.uri + "&timemap=true")
-
-            self.set_header("Link",
-                '<%s>; rel="original"'
-                ', <%s>; rel="timegate"'
-                ', <%s>; rel="timemap"'
-                % (key, timegate_url, timemap_url))
-
-            self.set_header("Memento-Datetime",
-                chain[-1].time.strftime(RFC1123DATEFMT))
-
-            if chain[0].type == CSet.DELETE:
-                # The last change was a delete. Return a 404 response with
-                # appropriate "Link" and "Memento-Datetime" headers.
-                raise HTTPError(404)
-
-            # Load the data required in order to restore the resource state.
-            blobs = revision_logic.create_blobs(repo, sha, chain)
-            if len(chain) == 1:
-                # Special case, where we can simply return
-                # the blob data of the snapshot.
-                snap = blobs.first().data
-                return self.finish(revision_logic.decompress(snap))
-
-            stmts = set()
-
-            for i, blob in enumerate(blobs.iterator()):
-                data = decompress(blob.data)
-
-                if i == 0:
-                    # Base snapshot for the delta chain
-                    stmts.update(data.splitlines())
-                else:
-                    for line in data.splitlines():
-                        mode, stmt = line[0], line[2:]
-                        if mode == "A":
-                            stmts.add(stmt)
-                        else:
-                            stmts.discard(stmt)
-
-            self.write(join(stmts, "\n"))
+            self.__get_revision(repo, key, ts)
         elif key and timemap:
-            # Generate a timemap containing historic change information
-            # for the requested key. The timemap is in the default link-format
-            # or as JSON (http://mementoweb.org/guide/timemap-json/).
-
-            sha = revision_logic.get_shasum(key)
-            csit = revision_logic.create_cset(repo, sha)            
-                
-            # TODO: Paginate?
-
-            try:
-                first = csit.next()
-            except StopIteration:
-                # Resource for given key does not exist.
-                raise HTTPError(404)
-
-            req = self.request
-            base = req.protocol + "://" + req.host + req.path
-
-            accept = self.request.headers.get("Accept", "")
-
-            if "application/link-format" in accept or "*/*" in accept:
-                m = (',\n'
-                     '<' + base + '?key=' + url_escape(key) + '&datetime={0}>'
-                                                              '; rel="memento"'
-                                                              '; datetime="{1}"'
-                                                              '; type="application/n-quads"')
-
-                self.set_header("Content-Type", "application/link-format")
-
-                self.write('<' + key + '>; rel="original"')
-                self.write(m.format(first.time.strftime(QSDATEFMT),
-                                    first.time.strftime(RFC1123DATEFMT)))
-
-                for cs in csit:
-                    self.write(m.format(cs.time.strftime(QSDATEFMT),
-                                        cs.time.strftime(RFC1123DATEFMT)))
-            elif "application/json" in accept:
-                self.set_header("Content-Type", "application/json")
-
-                self.write('{"original_uri": ' + json_encode(key))
-                self.write(', "mementos": {"list":[')
-
-                m = ('{{"datetime": "{0}", "uri": "' + base + '?key=' +
-                    url_escape(key) +
-                    '&datetime={1}"}}')
-
-                self.write(m.format(first.time.isoformat(),
-                    first.time.strftime(QSDATEFMT)))
-
-                for cs in csit:
-                    self.write(', ' + m.format(cs.time.isoformat(),
-                        cs.time.strftime(QSDATEFMT)))
-
-                self.write(']}')
-                self.write('}')
-            else:
-                raise HTTPError(reason='Serialization not supported.', status_code=400)
-
+            self.__get_timemap(repo, key)
         elif index:
-            # Generate an index of all URIs contained in the dataset at the
-            # provided point in time or in its current state.
-
-            self.set_header("Vary", "accept-datetime")
-            self.set_header("Content-Type", "text/plain")
-
-            page = int(self.get_query_argument("page", "1"))
-
-            hm = revision_logic.generate_index(repo, ts, page)
-
-            for h in hm:
-                self.write(h.val + "\n")
+            self.__get_index(repo, ts)
         else:
             raise HTTPError(400)
-            
+
+    def __get_revision(self, repo, key, ts):
+        # Recreate the resource for the given key
+        # - in its latest state (if no `datetime` was provided) or
+        # - in the state it was in at the time indicated by the passed `datetime` argument.
+
+        self.set_header("Content-Type", "application/n-quads")
+        self.set_header("Vary", "accept-datetime")
+
+        sha = revision_logic.get_shasum(key)
+        chain = revision_logic.get_chain_for_ts(repo, sha, ts)
+
+        if chain == None:
+            raise HTTPError(404)
+
+        timegate_url = (self.request.protocol + "://" +
+                        self.request.host + self.request.path)
+        timemap_url = (self.request.protocol + "://" +
+                       self.request.host + self.request.uri + "&timemap=true")
+
+        self.set_header("Link",
+                        '<%s>; rel="original"'
+                        ', <%s>; rel="timegate"'
+                        ', <%s>; rel="timemap"'
+                        % (key, timegate_url, timemap_url))
+
+        self.set_header("Memento-Datetime",
+                        chain[-1].time.strftime(RFC1123DATEFMT))
+
+        if chain[0].type == CSet.DELETE:
+            # The last change was a delete. Return a 404 response with
+            # appropriate "Link" and "Memento-Datetime" headers.
+            raise HTTPError(404)
+
+        stmts = revision_logic.get_revision(repo, sha, chain)
+
+        self.write(join(stmts, "\n"))
+
+    def __get_timemap(self, repo, key):
+        # Generate a timemap containing historic change information
+        # for the requested key. The timemap is in the default link-format
+        # or as JSON (http://mementoweb.org/guide/timemap-json/).
+
+        sha = revision_logic.get_shasum(key)
+        csets = revision_logic.get_csets(repo, sha)
+        csit = csets.iterator()
+
+        # TODO: Paginate?
+
+        try:
+            first = csit.next()
+        except StopIteration:
+            # Resource for given key does not exist.
+            raise HTTPError(404)
+
+        timemap_url = (self.request.protocol + "://" +
+                       self.request.host + self.request.uri)
+        timegate_url = (self.request.protocol + "://" +
+                        self.request.host + self.request.path + "?key=" + key)
+        accept = self.request.headers.get("Accept", "")
+
+        if "application/json" in accept or "*/*" in accept:
+            self.set_header("Content-Type", "application/json")
+
+            self.write('{"original_uri": ' + json_encode(key))
+            self.write(', "mementos": {"list":[')
+
+            m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
+                 '&datetime={1}"}}')
+
+            self.write(m.format(first.time.isoformat(),
+                                first.time.strftime(QSDATEFMT)))
+
+            for cs in csit:
+                self.write(', ' + m.format(cs.time.isoformat(),
+                                           cs.time.strftime(QSDATEFMT)))
+
+            self.write(']}')
+            self.write('}')
+        elif "application/link-format" in accept:
+            self.set_header("Content-Type", "application/link-format")
+
+            m = (',\n' +
+                 '<' + timegate_url + '&datetime={0}>\n' +
+                 '  ; rel="memento"' +
+                 '; datetime="{1}"' +
+                 '; type="application/n-quads"')
+
+            self.write('<' + key + '>\n  ; rel="original"')
+            self.write(',\n<' + timemap_url + '>\n  ; rel="self"')
+            self.write(m.format(first.time.strftime(QSDATEFMT),
+                                first.time.strftime(RFC1123DATEFMT)))
+
+            for cs in csit:
+                self.write(m.format(cs.time.strftime(QSDATEFMT),
+                                    cs.time.strftime(RFC1123DATEFMT)))
+        else:
+            raise HTTPError(reason='Timemap format not supported.', status_code=400)
+
+    def __get_index(self, repo, ts):
+        # Generate an index of all URIs contained in the dataset at the
+        # provided point in time or in its current state.
+
+        self.set_header("Vary", "accept-datetime")
+        self.set_header("Content-Type", "text/plain")
+
+        page = int(self.get_query_argument("page", "1"))
+
+        hm = revision_logic.get_repo_index(repo, ts, page)
+
+        for h in hm:
+            self.write(h.val + "\n")
+
     @authenticated
     def put(self, username, reponame):
         # Create a new revision of the resource specified by `key`.
@@ -307,19 +295,18 @@ class RepoHandler(BaseHandler):
 
         if username != self.current_user.name:
             raise HTTPError(403)
-
         if not key:
             raise HTTPError(400)
 
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        repo = revision_logic.loadRepo(username, reponame)
+        repo = revision_logic.get_repo(username, reponame)
         if repo == None:
             raise HTTPError(404)
 
         sha = revision_logic.get_shasum(key)
-        chain = revision_logic.get_chain_without_time(repo, sha)
+        chain = revision_logic.get_chain_tail(repo, sha)
 
         try:
             revision_logic.detect_collisions(chain, sha, ts, key)
@@ -327,13 +314,12 @@ class RepoHandler(BaseHandler):
             raise HTTPError(400)
         except IntegrityError:
             raise HTTPError(500)
-        
 
         # Parse and normalize into a set of N-Quad lines
-        stmts = parse(self.request.body, fmt)
-        snapc = compress(join(stmts, "\n"))
+        stmts = revision_logic.parse(self.request.body, fmt)
 
-        prev_state = revision_logic.reconstruct_prev_state(chain, repo, sha, stmts, patch, snapc, ts)
+        prev_state = revision_logic.save_revision(repo, sha, chain, stmts, ts)
+
         if prev_state == None:
             self.finish()
 
@@ -353,21 +339,24 @@ class RepoHandler(BaseHandler):
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        repo = revision_logic.load_repo(username, reponame)
+        repo = revision_logic.get_repo(username, reponame)
         if repo == None:
             raise HTTPError(404)
         
         sha = revision_logic.get_shasum(key)
-        last = revision_logic.create_last_set(sha, repo)
-        if last[0] == False:
+        chain = revision_logic.get_chain_tail(repo, sha)
+
+        last = revision_logic.get_chain_last_cset(repo, sha)
+
+        if last == None:
             raise HTTPError(400)
 
-        if not ts > last[1]:
+        if not ts > last.time:
             # Appended timestamps must be monotonically increasing!
             raise HTTPError(400)
 
-        if last[2] == CSet.DELETE:
+        if last.type == CSet.DELETE:
             # The resource was deleted already, return instantly.
             return self.finish()
 
-        revision_logic.insert_delete_changes(repo, last, ts)
+        revision_logic.delete_revision(repo, sha, ts)
