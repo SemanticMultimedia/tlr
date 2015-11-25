@@ -23,6 +23,6 @@ install:
 
 
 script: 
-  - test/tests.py
+  - python test/tests.py -v
 
 # notifications:
