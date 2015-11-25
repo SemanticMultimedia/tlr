@@ -9,10 +9,7 @@ addons:
   mariadb: '10.1'
 
 env:
-  - DATABASE_URL: "mysql://tailr:tailr@db/tailr"
-  - COOKIE_SECRET: "secret"
-  - GITHUB_CLIENT_ID: "d7c043982588fa436096"
-  - GITHUB_SECRET: "422fe669f1b219cb03a9bcb907eca99716475797"
+  - DATABASE_URL= "mysql://tailr:tailr@db/tailr"  COOKIE_SECRET= "secret"  GITHUB_CLIENT_ID= "d7c043982588fa436096"  GITHUB_SECRET= "422fe669f1b219cb03a9bcb907eca99716475797"
 
 services:
   - docker
