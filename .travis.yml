@@ -10,6 +10,7 @@ services:
 
 before_install:
   - docker build -t pmeinhardt/tailr .
+  - service docker start
   - docker run -d -e MYSQL_ROOT_PASSWORD=root -e MYSQL_USER=tailr -e MYSQL_PASSWORD=tailr -e MYSQL_DATABASE=tailr --name mariadb mariadb
   - docker run --rm -it --link mariadb:db -e COOKIE_SECRET=x -e GITHUB_CLIENT_ID=y -e GITHUB_SECRET=z -e DATABASE_URL=mysql://tailr:tailr@db/tailr pmeinhardt/tailr python prepare.py
   - docker run -d --link mariadb:db -e COOKIE_SECRET=secret -e GITHUB_CLIENT_ID=xxx -e GITHUB_SECRET=xxx -e DATABASE_URL=mysql://tailr:tailr@db/tailr -p 127.0.0.1:8000:5000 pmeinhardt/tailr
