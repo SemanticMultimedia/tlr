@@ -15,7 +15,7 @@ python:
 before_install:
   - docker build -t pmeinhardt/tailr .
   - docker run -d -e MYSQL_ROOT_PASSWORD=root -e MYSQL_USER=tailr -e MYSQL_PASSWORD=tailr -e MYSQL_DATABASE=tailr --name mariadb mariadb
-  - docker run --rm -it --link mariadb:db -e COOKIE_SECRET=9ac3a5c953d301a45a672f1c4860eebb66b92f7e353534fcd3f119d75858d1d2769f9d6cbb8e1f45971e08b0b790d01af942ca404275fac29933743f3f9b0cfd02d0668a090ec6ebb79f59ce85f7428c38013cef229bdff750ff10b97c18f54461dbb373276e3b506138fec3daba3cb6cab758ccd1b74f7889c42b57565d7b26 -e GITHUB_CLIENT_ID=acf046b97fe6ab6a314b -e GITHUB_SECRET=0f0ce67c7dce0753dcdb8a45bd5773686e28d725 -e DATABASE_URL=mysql://tailr:tailr@db/tailr -e pmeinhardt/tailr python prepare.py
+  - docker run --rm -it --link mariadb:db -e COOKIE_SECRET=9ac3a5c953d301a45a672f1c4860eebb66b92f7e353534fcd3f119d75858d1d2769f9d6cbb8e1f45971e08b0b790d01af942ca404275fac29933743f3f9b0cfd02d0668a090ec6ebb79f59ce85f7428c38013cef229bdff750ff10b97c18f54461dbb373276e3b506138fec3daba3cb6cab758ccd1b74f7889c42b57565d7b26 -e GITHUB_CLIENT_ID=acf046b97fe6ab6a314b -e GITHUB_SECRET=0f0ce67c7dce0753dcdb8a45bd5773686e28d725 -e DATABASE_URL=mysql://tailr:tailr@db/tailr -e DEBUG=1 pmeinhardt/tailr python prepare.py
   # - docker run -d --link mariadb:db -e COOKIE_SECRET=secret -e GITHUB_CLIENT_ID=xxx -e GITHUB_SECRET=xxx -e DATABASE_URL=mysql://tailr:tailr@db/tailr -p 127.0.0.1:8000:5000 pmeinhardt/tailr
   # - docker-compose up
   # - docker-compose run --rm app python prepare.py 
