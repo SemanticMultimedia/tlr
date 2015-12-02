@@ -3,10 +3,10 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir)
 
-# os.environ["COOKIE_SECRET"] = "secret"
-# os.environ["GITHUB_CLIENT_ID"] = "x"
-# os.environ["GITHUB_SECRET"] = "y"
-# os.environ["DATABASE_URL"] = "mysql://Oleg1@localhost/db1"
+os.environ["COOKIE_SECRET"] = "secret"
+os.environ["GITHUB_CLIENT_ID"] = "x"
+os.environ["GITHUB_SECRET"] = "y"
+os.environ["DATABASE_URL"] = "mysql://Oleg1@localhost/db1"
 
 from database import MDB as Database
 
