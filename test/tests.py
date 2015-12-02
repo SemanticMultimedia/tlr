@@ -10,7 +10,7 @@ sys.path.insert(0,parentdir)
 
 from database import MDB as Database
 
-from config import dbconf, bsconf
+# from config import dbconf, bsconf
 from models import *
 import models
 
