@@ -22,18 +22,21 @@ from peewee import fn
 import tornado.testing
 import unittest
 
-
 database = Database(**dbconf)
-blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
-models.initialize(database, blobstore)
-database.create_tables([
-    User,
-    Token,
-    Repo,
-    HMap,
-    CSet,
-    Blob,
-])
+dbproxy = Proxy()
+dbproxy.initialize(database)
+
+
+# blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
+# models.initialize(database, blobstore)
+# database.create_tables([
+#     User,
+#     Token,
+#     Repo,
+#     HMap,
+#     CSet,
+#     Blob,
+# ])
 
 
 
