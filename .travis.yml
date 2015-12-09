@@ -26,8 +26,8 @@ before_install:
 install: 
   - pip install -r requirements.txt
 
-# before_script:
-
+before_script:
+  - docker exec -i -t $(docker ps | grep vagrant_app | awk '{ print $1}') bash
 
 script: 
   - python test/tests.py -v
