@@ -27,6 +27,7 @@ install:
   - pip install -r requirements.txt
 
 before_script:
+  - docker ps
   - docker exec -i -t vagrant_app_1 bash
   # - docker exec -i -t $(docker ps | grep vagrant_app | awk '{ print $1}') bash
 
