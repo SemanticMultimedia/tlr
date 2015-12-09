@@ -32,7 +32,7 @@ before_script:
   # - docker exec -i -t $(docker ps | grep vagrant_app | awk '{ print $1}') bash
 
 script: 
-  - docker exec -i -t tlr_app_1 python /vagrant/test/tests.py -v
+  - docker exec -it vagrant_app_1 python test/tests.py
   # - python test/tests.py -v
 
 # notifications:
