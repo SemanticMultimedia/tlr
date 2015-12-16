@@ -11,8 +11,8 @@ app:
   environment:
     DATABASE_URL: "mysql://tailr:tailr@db/tailr"
     COOKIE_SECRET: "secret"
-    GITHUB_CLIENT_ID: "d7c043982588fa436096"
-    GITHUB_SECRET: "422fe669f1b219cb03a9bcb907eca99716475797"
+    GITHUB_CLIENT_ID: "eb2700d7dc16e8cc20ba"
+    GITHUB_SECRET: "fcda22f4bf4f132c293a1e2b624ff6c43fb0e456"
     DEBUG: 1
   volumes:
     - .:/home/tailr/app
