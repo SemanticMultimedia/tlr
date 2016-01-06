@@ -21,6 +21,7 @@ routes = [
         name="web:del-token"),
     url(r"/([^/]+)", handlers.web.UserHandler, name="web:user"),
     url(r"/([^/]+)/([^/]+)", handlers.web.RepoHandler, name="web:repo"),
+    url(r"/([^/]+)/([^/]+)/del", handlers.web.DelRepoHandler, name="web:del-repo"),
     url(r"/api/([^/]+)/([^/]+)", handlers.api.RepoHandler, name="api:repo"),
     url(r".*", handlers.web.ErrorHandler, dict(status_code=404)), # catch all
 ]
@@ -43,6 +44,7 @@ routes = [
 # POST  /settings/tokens/:id/del        Delete API token
 # GET   /:user                          User page
 # GET   /:user/:repo                    Repository access
+# POST  /:user/:repo/del                Delete repository
 #
 # PUT   /api/:user/:repo?key=URI
 # PUT   /api/:user/:repo?key=URI&datetime=DATETIME

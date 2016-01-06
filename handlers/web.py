@@ -1,6 +1,8 @@
 import functools
 import random
 
+import logging
+
 import tornado.auth
 import tornado.escape
 import tornado.gen
@@ -16,6 +18,9 @@ from peewee import fn
 
 from models import User, Repo, HMap, CSet, Token
 from handlers import RequestHandler
+import revision_logic
+
+logger = logging.getLogger('debug')
 
 class BaseHandler(RequestHandler):
     """Base class for all web front end handlers."""
@@ -127,6 +132,27 @@ class CreateRepoHandler(BaseHandler):
             return
         repo = Repo.create(user=user, name=reponame, desc=desc)
         self.redirect(self.reverse_url("web:repo", user.name, repo.name))
+
+class DelRepoHandler(BaseHandler):
+    @authenticated
+    def post(self, username, reponame):
+        user = self.current_user
+        verify = self.get_argument("verify", None)
+        logger.info(username)
+        logger.info(reponame)
+        logger.info(verify)
+        try:
+            repo = revision_logic.get_repo(username, reponame)
+            if repo == None:
+                raise HTTPError(reason="Repo not found.", status_code=404)
+            logger.info(repo.name)
+            if (repo.name == verify):
+                #revision_logic.remove_repo(repo)
+                self.redirect(self.reverse_url("web:user", user.name))
+            else:
+                raise HTTPError(501)
+        except:
+          raise HTTPError(reason="Some exception occured.", status_code=404)
 
 class SettingsHandler(BaseHandler):
     @authenticated
