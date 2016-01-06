@@ -150,7 +150,7 @@ class RepoHandler(BaseHandler):
         key = self.get_query_argument("key", None)
 
         if (index and timemap) or (index and key) or (timemap and not key):
-            raise HTTPError(400)
+            raise HTTPError(reason="Invalid arguments.", status_code=400)
 
         if self.get_query_argument("datetime", None):
             datestr = self.get_query_argument("datetime")
@@ -164,7 +164,7 @@ class RepoHandler(BaseHandler):
         #load repo
         repo = revision_logic.get_repo(username, reponame)
         if repo == None:
-            raise HTTPError(404)
+            raise HTTPError(reason="Repo not found.", status_code=404)
 
         if key and not timemap:
             self.__get_revision(repo, key, ts)
@@ -173,7 +173,7 @@ class RepoHandler(BaseHandler):
         elif index:
             self.__get_index(repo, ts)
         else:
-            raise HTTPError(400)
+            raise HTTPError(reason="Missing arguments.", status_code=400)
 
     def __get_revision(self, repo, key, ts):
         # Recreate the resource for the given key
@@ -183,11 +183,10 @@ class RepoHandler(BaseHandler):
         self.set_header("Content-Type", "application/n-quads")
         self.set_header("Vary", "accept-datetime")
 
-        sha = revision_logic.get_shasum(key)
-        chain = revision_logic.get_chain_for_ts(repo, sha, ts)
+        chain = revision_logic.get_chain_at_ts(repo, key, ts)
 
         if chain == None:
-            raise HTTPError(404)
+            raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
         timegate_url = (self.request.protocol + "://" +
                         self.request.host + self.request.path)
@@ -206,9 +205,9 @@ class RepoHandler(BaseHandler):
         if chain[0].type == CSet.DELETE:
             # The last change was a delete. Return a 404 response with
             # appropriate "Link" and "Memento-Datetime" headers.
-            raise HTTPError(404)
+            raise HTTPError(reason="Resource not exists at time.", status_code=404)
 
-        stmts = revision_logic.get_revision(repo, sha, chain)
+        stmts = revision_logic.get_revision(repo, key, chain)
 
         self.write(join(stmts, "\n"))
 
@@ -217,8 +216,7 @@ class RepoHandler(BaseHandler):
         # for the requested key. The timemap is in the default link-format
         # or as JSON (http://mementoweb.org/guide/timemap-json/).
 
-        sha = revision_logic.get_shasum(key)
-        csets = revision_logic.get_csets(repo, sha)
+        csets = revision_logic.get_csets(repo, key)
         csit = csets.iterator()
 
         # TODO: Paginate?
@@ -227,7 +225,7 @@ class RepoHandler(BaseHandler):
             first = csit.next()
         except StopIteration:
             # Resource for given key does not exist.
-            raise HTTPError(404)
+            raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
         timemap_url = (self.request.protocol + "://" +
                        self.request.host + self.request.uri)
@@ -271,7 +269,7 @@ class RepoHandler(BaseHandler):
                 self.write(m.format(cs.time.strftime(QSDATEFMT),
                                     cs.time.strftime(RFC1123DATEFMT)))
         else:
-            raise HTTPError(reason='Timemap format not supported.', status_code=400)
+            raise HTTPError(reason="Requested timemap format not supported.", status_code=400)
 
     def __get_index(self, repo, ts):
         # Generate an index of all URIs contained in the dataset at the
@@ -296,29 +294,26 @@ class RepoHandler(BaseHandler):
         if username != self.current_user.name:
             raise HTTPError(403)
         if not key:
-            raise HTTPError(400)
+            raise HTTPError(reason="Missing argument 'key'.", status_code=400)
+
+        repo = revision_logic.get_repo(username, reponame)
+        if repo == None:
+            raise HTTPError(reason="Repo not found.", status_code=404)
 
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        repo = revision_logic.get_repo(username, reponame)
-        if repo == None:
-            raise HTTPError(404)
-
-        sha = revision_logic.get_shasum(key)
-        chain = revision_logic.get_chain_tail(repo, sha)
-
-        try:
-            revision_logic.detect_collisions(chain, sha, ts, key)
-        except ValueError:
-            raise HTTPError(400)
-        except IntegrityError:
-            raise HTTPError(500)
+        chain = revision_logic.get_chain_tail(repo, key)
 
         # Parse and normalize into a set of N-Quad lines
         stmts = revision_logic.parse(self.request.body, fmt)
 
-        prev_state = revision_logic.save_revision(repo, sha, chain, stmts, ts)
+        try:
+            prev_state = revision_logic.save_revision(repo, key, chain, stmts, ts)
+        except ValueError:
+            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+        except IntegrityError:
+            raise HTTPError(500)
 
         if prev_state == None:
             self.finish()
@@ -332,31 +327,29 @@ class RepoHandler(BaseHandler):
 
         if username != self.current_user.name:
             raise HTTPError(403)
-
         if not key:
-            raise HTTPError(400)
+            raise HTTPError(reason="Missing argument 'key'.", status_code=400)
+
+        repo = revision_logic.get_repo(username, reponame)
+        if repo == None:
+            raise HTTPError(reason="Repo not found.", status_code=404)
 
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        repo = revision_logic.get_repo(username, reponame)
-        if repo == None:
-            raise HTTPError(404)
-        
-        sha = revision_logic.get_shasum(key)
-        chain = revision_logic.get_chain_tail(repo, sha)
+        #chain = revision_logic.get_chain_tail(repo, key)
 
-        last = revision_logic.get_chain_last_cset(repo, sha)
+        last = revision_logic.get_chain_last_cset(repo, key)
 
         if last == None:
-            raise HTTPError(400)
+            raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
         if not ts > last.time:
             # Appended timestamps must be monotonically increasing!
-            raise HTTPError(400)
+            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
 
         if last.type == CSet.DELETE:
             # The resource was deleted already, return instantly.
-            return self.finish()
+            self.finish()
 
-        revision_logic.delete_revision(repo, sha, ts)
+        revision_logic.save_revision_delete(repo, key, ts)

@@ -28,11 +28,11 @@ def compress(s):
 def decompress(s):
     return zlib.decompress(s)
 
-def shasum(s):
+def __shasum(s):
     return hashlib.sha1(s).digest()
 
-def get_shasum(key):
-    sha = shasum(key.encode("utf-8")) #hashing
+def __get_shasum(key):
+    sha = __shasum(key.encode("utf-8")) #hashing
     return sha
 
 '''parse serialized RDF'''
@@ -64,13 +64,17 @@ def get_repo(username, reponame):
         repo = None
     return repo
 
-def get_chain_for_ts(repo, sha, ts):
+def get_chain_at_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_chain_at_ts(repo, sha, ts)
+
+def __get_chain_at_ts(repo, sha, ts):
     # Fetch all relevant changes from the last "non-delta" onwards,
     # ordered by time. The returned delta-chain consists of either:
     # a snapshot followed by 0 or more deltas, or
     # a single delete.
     chain = list(CSet
-        .select(CSet.time, CSet.type)
+        .select(CSet.time, CSet.type, CSet.len)
         .where(
             (CSet.repo == repo) &
             (CSet.hkey == sha) &
@@ -92,7 +96,11 @@ def get_chain_for_ts(repo, sha, ts):
         return None
     return chain
 
-def get_chain_tail(repo, sha):
+def get_chain_tail(repo, key):
+    sha = __get_shasum(key)
+    return __get_chain_tail(repo, sha)
+
+def __get_chain_tail(repo, sha):
     chain = list(CSet
             .select(CSet.time, CSet.type, CSet.len)
             .where(
@@ -114,7 +122,11 @@ def get_chain_tail(repo, sha):
         return None
     return chain
 
-def get_chain_last_cset(repo, sha):
+def get_chain_last_cset(repo, key):
+    sha = __get_shasum(key)
+    return __get_chain_last_cset(repo, sha)
+
+def __get_chain_last_cset(repo, sha):
     try:
         last = (CSet
                 .select(CSet.time, CSet.type, CSet.len)
@@ -129,7 +141,7 @@ def get_chain_last_cset(repo, sha):
         return None
     return last
 
-def get_blobs(repo, sha, chain):
+def __get_blobs(repo, sha, chain):
     blobs = (Blob
         .select(Blob.data)
         .where(
@@ -141,8 +153,12 @@ def get_blobs(repo, sha, chain):
     return blobs
 
 '''get revision as set of statements'''
-def get_revision(repo, sha, chain):
-    blobs = get_blobs(repo, sha, chain)
+def get_revision(repo, key, chain):
+    sha = __get_shasum(key)
+    return __get_revision(repo, sha, chain)
+
+def __get_revision(repo, sha, chain):
+    blobs = __get_blobs(repo, sha, chain)
     #if len(chain) == 1:
          # Special case, where we can simply return
          # the blob data of the snapshot.
@@ -166,7 +182,9 @@ def get_revision(repo, sha, chain):
                     stmts.discard(stmt)
     return stmts
 
-def get_csets(repo, sha):
+def get_csets(repo, key):
+    sha = __get_shasum(key)
+
     # Generate a timemap containing historic change information
     # for the requested key. The timemap is in the default link-format
     # or as JSON (http://mementoweb.org/guide/timemap-json/).
@@ -177,6 +195,23 @@ def get_csets(repo, sha):
         .naive())
 
     return csets
+
+def get_cset_next_after_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_cset_next_after_ts(repo, sha, ts)
+
+def __get_cset_next_after_ts(repo, sha, ts):
+    try:
+        cset = (CSet
+                .select(CSet.time, CSet.type)
+                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time > ts))
+                .order_by(CSet.time)
+                .limit(1)
+                .naive())
+    except CSet.DoesNotExist:
+        return None
+
+    return cset
 
 def get_repo_index(repo, ts, page):
     # Subquery for selecting max. time per hkey group
@@ -205,7 +240,11 @@ def get_repo_index(repo, ts, page):
 
     return hm.iterator()    
 
-def detect_collisions(chain, sha, ts, key):
+def save_revision(repo, key, chain, stmts, ts):
+    sha = __get_shasum(key)
+    return __save_revision(repo, sha, chain, stmts, ts)
+
+def __save_revision(repo, sha, chain, stmts, ts):
     # TODO: Allow adding revisions with datetime prior to latest #2
     if len(chain) > 0 and not ts > chain[-1].time:
         # Appended timestamps must be monotonically increasing!
@@ -225,7 +264,6 @@ def detect_collisions(chain, sha, ts, key):
             if val != key:
                 raise IntegrityError
 
-def save_revision(repo, sha, chain, stmts, ts):
     if len(chain) == 0 or chain[0].type == CSet.DELETE:
         # Provide dummy value for `patch` which is never stored.
         # If we get here, we always store a snapshot later on!
@@ -265,6 +303,86 @@ def save_revision(repo, sha, chain, stmts, ts):
             len=len(patch))
     return 0
 
-def delete_revision(repo, sha, ts):
+def save_revision_delete(repo, key, ts):
+    sha = __get_shasum(key)
+
     # Insert the new "delete" change.
     CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
+
+#### Repository management ####
+
+def remove_repo(repo):
+    # remove all csets
+    __remove_csets_repo(repo)
+    # remove keys from hmap
+    __cleanup_hmap()
+    # remove repo
+    __remove_repo(repo)
+
+def __cleanup_hmap():
+    # TODO delete all entries whose sha is not referenced in CSet any more
+    pass
+
+def __remove_repo(repo):
+    # remove repo
+    repo.delete_instance(recursive=True)
+
+def __remove_csets_repo(repo):
+    # remove blobs
+    q_blobs = Blob.delete().where(Blob.repo == repo)
+    q_blobs.execute()
+
+    # remove csets
+    q_csets = CSet.delete().where(CSet.repo == repo)
+    q_csets.execute()
+
+def __remove_csets(repo, sha):
+    # remove blobs
+    q_blobs = Blob.delete().where(Blob.repo == repo, Blob.hkey == sha)
+    q_blobs.execute()
+
+    # remove csets
+    q_csets = CSet.delete().where(CSet.repo == repo, CSet.hkey == sha)
+    q_csets.execute()
+
+def __remove_cset(repo, sha, ts):
+    # remove blob
+    try:
+        blob = Blob.get(Blob.repo == repo, Blob.hkey == sha, Blob.time == ts)
+        blob.delete_instance()
+    except Blob.DoesNotExist:
+        return None
+
+    # remove cset
+    try:
+        cset = CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
+        cset.delete_instance()
+    except CSet.DoesNotExist:
+        return None
+
+def remove_revision(repo, key, ts):
+    # (repo, hkey, time) is composite key for cset
+    sha = __get_shasum(key)
+    return __remove_revision(repo, sha, ts)
+
+def __remove_revision(repo, sha, ts):
+    # keep next revision statements
+    stmts_ats = set()
+    cset_ats = __get_cset_next_after_ts(repo, sha, ts)
+    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+        # not last cset
+        chain_ats = __get_chain_at_ts(repo, sha, cset_ats.time)
+        stmts_ats = __get_revision(repo, sha, chain_ats)
+
+    # remove blob and cset
+    __remove_cset(repo, sha, ts)
+
+    # if not last cset, re-compute next cset
+    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+        __remove_cset(repo, sha, cset_ats.time)
+        chain = __get_chain_at_ts(repo, sha, cset_ats.time)
+        __save_revision(repo, sha, chain, stmts_ats, cset_ats.time)
+
+    # if all csets removed, remove key from hmap
+    if (cset_ats == None):
+        __cleanup_hmap()
