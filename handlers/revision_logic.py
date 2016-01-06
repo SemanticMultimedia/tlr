@@ -1,8 +1,10 @@
 import hashlib
 import zlib
+import string
 
 from models import User, Token, Repo, HMap, CSet, Blob
 from peewee import IntegrityError, SQL, fn
+import RDF
 
 # This factor (among others) determines whether a snapshot is stored rather
 # than a delta, depending on the size of the latest snapshot and subsequent
@@ -20,30 +22,37 @@ SNAPF = 10.0
 # Pagination size for indexes (number of resource URIs per page)
 INDEX_PAGE_SIZE = 1000
 
-
 def compress(s):
     return zlib.compress(s)
 
 def decompress(s):
     return zlib.decompress(s)
 
-def shasum(s):
+def __shasum(s):
     return hashlib.sha1(s).digest()
 
-    
-# Parse serialized RDF:
-#
-# RDF/XML:      application/rdf+xml
-# N-Triples:    application/n-triples
-# Turtle:       text/turtle
+def __get_shasum(key):
+    sha = __shasum(key.encode("utf-8")) #hashing
+    return sha
+
+'''parse serialized RDF'''
 def parse(s, fmt):
+    # Parse serialized RDF:
+    #
+    # RDF/XML:      application/rdf+xml
+    # N-Triples:    application/n-triples
+    # Turtle:       text/turtle
     stmts = set()
     parser = RDF.Parser(mime_type=fmt)
     for st in parser.parse_string_as_stream(s, "urn:x-default:tailr"):
         stmts.add(str(st) + " .")
     return stmts
-    
-def load_repo(username, reponame):
+
+def join(parts, sep):
+    return string.joinfields(parts, sep)
+
+
+def get_repo(username, reponame):
     try:
         repo = (Repo
             .select(Repo.id)
@@ -54,18 +63,18 @@ def load_repo(username, reponame):
     except Repo.DoesNotExist:
         repo = None
     return repo
-    
-def get_shasum(key):
-    sha = shasum(key.encode("utf-8")) #hashing
-    return sha
-    
-def get_chain(repo, sha, ts):
+
+def get_chain_at_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_chain_at_ts(repo, sha, ts)
+
+def __get_chain_at_ts(repo, sha, ts):
     # Fetch all relevant changes from the last "non-delta" onwards,
     # ordered by time. The returned delta-chain consists of either:
     # a snapshot followed by 0 or more deltas, or
     # a single delete.
     chain = list(CSet
-        .select(CSet.time, CSet.type)
+        .select(CSet.time, CSet.type, CSet.len)
         .where(
             (CSet.repo == repo) &
             (CSet.hkey == sha) &
@@ -87,7 +96,11 @@ def get_chain(repo, sha, ts):
         return None
     return chain
 
-def get_chain_without_time(repo, sha):
+def get_chain_tail(repo, key):
+    sha = __get_shasum(key)
+    return __get_chain_tail(repo, sha)
+
+def __get_chain_tail(repo, sha):
     chain = list(CSet
             .select(CSet.time, CSet.type, CSet.len)
             .where(
@@ -104,9 +117,31 @@ def get_chain_without_time(repo, sha):
                 )))
             .order_by(CSet.time)
             .naive())
+    if len(chain) == 0:
+        # A resource does not exist for the given key.
+        return None
     return chain
 
-def create_blobs(repo, sha, chain):
+def get_chain_last_cset(repo, key):
+    sha = __get_shasum(key)
+    return __get_chain_last_cset(repo, sha)
+
+def __get_chain_last_cset(repo, sha):
+    try:
+        last = (CSet
+                .select(CSet.time, CSet.type, CSet.len)
+                .where(
+                    (CSet.repo == repo) &
+                    (CSet.hkey == sha))
+                .order_by(CSet.time.desc())
+                .limit(1)
+                .naive()
+                .get())
+    except CSet.DoesNotExist:
+        return None
+    return last
+
+def __get_blobs(repo, sha, chain):
     blobs = (Blob
         .select(Blob.data)
         .where(
@@ -117,19 +152,18 @@ def create_blobs(repo, sha, chain):
         .naive())
     return blobs
 
-def load_blobs(blobs, repo, sha, chain):
-    # doesnt work in api
-    if len(chain) == 1:
-            # Special case, where we can simply return
-            # the blob data of the snapshot.
-            snap = blobs.first().data
-            raise ValueError(decompress(snap))
-            
-    # Recreate the resource for the given key in its latest state -
-    # if no `datetime` was provided - or in the state it was in at
-    # the time indicated by the passed `datetime` argument. 
+'''get revision as set of statements'''
+def get_revision(repo, key, chain):
+    sha = __get_shasum(key)
+    return __get_revision(repo, sha, chain)
 
-    # Load the data required in order to restore the resource state.
+def __get_revision(repo, sha, chain):
+    blobs = __get_blobs(repo, sha, chain)
+    #if len(chain) == 1:
+         # Special case, where we can simply return
+         # the blob data of the snapshot.
+    #     snap = blobs.first().data
+    #     return decompress(snap)
 
     stmts = set()
 
@@ -147,8 +181,10 @@ def load_blobs(blobs, repo, sha, chain):
                 else:
                     stmts.discard(stmt)
     return stmts
-    
-def create_cset(repo, sha):
+
+def get_csets(repo, key):
+    sha = __get_shasum(key)
+
     # Generate a timemap containing historic change information
     # for the requested key. The timemap is in the default link-format
     # or as JSON (http://mementoweb.org/guide/timemap-json/).
@@ -157,11 +193,27 @@ def create_cset(repo, sha):
         .where((CSet.repo == repo) & (CSet.hkey == sha))
         .order_by(CSet.time.desc())
         .naive())
-        
-    csit = csets.iterator()
-    return csit 
-    
-def generate_index(repo, ts, page):
+
+    return csets
+
+def get_cset_next_after_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_cset_next_after_ts(repo, sha, ts)
+
+def __get_cset_next_after_ts(repo, sha, ts):
+    try:
+        cset = (CSet
+                .select(CSet.time, CSet.type)
+                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time > ts))
+                .order_by(CSet.time)
+                .limit(1)
+                .naive())
+    except CSet.DoesNotExist:
+        return None
+
+    return cset
+
+def get_repo_index(repo, ts, page):
     # Subquery for selecting max. time per hkey group
     mx = (CSet
         .select(CSet.hkey, fn.Max(CSet.time).alias("maxtime"))
@@ -185,13 +237,19 @@ def generate_index(repo, ts, page):
         .select(HMap.val)
         .join(cs, on=(HMap.sha == cs.c.hkey_id))
         .naive())
-        
+
     return hm.iterator()    
-    
-def detect_collisions(chain, sha, ts, key):
+
+def save_revision(repo, key, chain, stmts, ts):
+    sha = __get_shasum(key)
+    return __save_revision(repo, sha, chain, stmts, ts)
+
+def __save_revision(repo, sha, chain, stmts, ts):
+    # TODO: Allow adding revisions with datetime prior to latest #2
     if len(chain) > 0 and not ts > chain[-1].time:
-            # Appended timestamps must be monotonically increasing!
-            raise ValueError
+        # Appended timestamps must be monotonically increasing!
+        raise ValueError
+
     if len(chain) == 0:
         # Mapping for `key` likely does not exist:
         # Store the SHA-to-KEY mapping in HMap,
@@ -199,22 +257,20 @@ def detect_collisions(chain, sha, ts, key):
         try:
             HMap.create(sha=sha, val=key)
         except IntegrityError:
-            val = HMap.select(HMap.val).where(HMap.sha == sha).scalar()
+            val = (HMap
+                   .select(HMap.val)
+                   .where(HMap.sha == sha)
+                   .scalar())
             if val != key:
                 raise IntegrityError
 
-def reconstruct_prev_state(chain, repo, sha, stmts, patch, snapc, ts):
     if len(chain) == 0 or chain[0].type == CSet.DELETE:
         # Provide dummy value for `patch` which is never stored.
         # If we get here, we always store a snapshot later on!
         patch = ""
     else:
         # Reconstruct the previous state of the resource
-        prev = set()
-
-        blobs = create_blobs(repo, sha, chain)
-
-        load_blobs(repo, sha, chain)
+        prev = get_revision(repo, sha, chain)
 
         if stmts == prev:
             # No changes, nothing to be done. Bail out.
@@ -224,14 +280,18 @@ def reconstruct_prev_state(chain, repo, sha, stmts, patch, snapc, ts):
             map(lambda s: "D " + s, prev - stmts) +
             map(lambda s: "A " + s, stmts - prev), "\n"))
 
+    snapc = compress(join(stmts, "\n"))
+
     # Calculate the accumulated size of the delta chain including
     # the (potential) patch from the previous to the pushed state.
-    acclen = reduce(lambda s, e: s + e.len, chain[1:], 0) + len(patch)
+    accumulated_len = reduce(lambda s, e: s + e.len, chain[1:], 0) + len(patch)
 
-    blen = len(chain) > 0 and chain[0].len or 0 # base length
+    base_len = len(chain) > 0 and chain[0].len or 0 # base length
 
-    if (len(chain) == 0 or chain[0].type == CSet.DELETE or
-        len(snapc) <= len(patch) or SNAPF * blen <= acclen):
+    if (len(chain) == 0 or
+        chain[0].type == CSet.DELETE or
+        len(snapc) <= len(patch) or
+        SNAPF * base_len <= accumulated_len):
         # Store the current state as a new snapshot
         Blob.create(repo=repo, hkey=sha, time=ts, data=snapc)
         CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.SNAPSHOT,
@@ -242,22 +302,87 @@ def reconstruct_prev_state(chain, repo, sha, stmts, patch, snapc, ts):
         CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELTA,
             len=len(patch))
     return 0
-                
-def create_last_set(sha, repo):
-    try:
-        last = (CSet
-            .select(CSet.time, CSet.type)
-            .where((CSet.repo == repo) & (CSet.hkey == sha))
-            .order_by(CSet.time.desc())
-            .limit(1)
-            .naive()
-            .get())
-    except CSet.DoesNotExist:
-        last = None
-    return last
-        # No changeset was found for the given key -
-        # the resource does not exist.
 
-def insert_delete_changes(repo, last, ts):
+def save_revision_delete(repo, key, ts):
+    sha = __get_shasum(key)
+
     # Insert the new "delete" change.
-    CSet.create(repo=repo, hkey=last[3], time=ts, type=CSet.DELETE, len=0)
+    CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
+
+#### Repository management ####
+
+def remove_repo(repo):
+    # remove all csets
+    __remove_csets_repo(repo)
+    # remove keys from hmap
+    __cleanup_hmap()
+    # remove repo
+    __remove_repo(repo)
+
+def __cleanup_hmap():
+    # TODO delete all entries whose sha is not referenced in CSet any more
+    pass
+
+def __remove_repo(repo):
+    # remove repo
+    repo.delete_instance(recursive=True)
+
+def __remove_csets_repo(repo):
+    # remove blobs
+    q_blobs = Blob.delete().where(Blob.repo == repo)
+    q_blobs.execute()
+
+    # remove csets
+    q_csets = CSet.delete().where(CSet.repo == repo)
+    q_csets.execute()
+
+def __remove_csets(repo, sha):
+    # remove blobs
+    q_blobs = Blob.delete().where(Blob.repo == repo, Blob.hkey == sha)
+    q_blobs.execute()
+
+    # remove csets
+    q_csets = CSet.delete().where(CSet.repo == repo, CSet.hkey == sha)
+    q_csets.execute()
+
+def __remove_cset(repo, sha, ts):
+    # remove blob
+    try:
+        blob = Blob.get(Blob.repo == repo, Blob.hkey == sha, Blob.time == ts)
+        blob.delete_instance()
+    except Blob.DoesNotExist:
+        return None
+
+    # remove cset
+    try:
+        cset = CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
+        cset.delete_instance()
+    except CSet.DoesNotExist:
+        return None
+
+def remove_revision(repo, key, ts):
+    # (repo, hkey, time) is composite key for cset
+    sha = __get_shasum(key)
+    return __remove_revision(repo, sha, ts)
+
+def __remove_revision(repo, sha, ts):
+    # keep next revision statements
+    stmts_ats = set()
+    cset_ats = __get_cset_next_after_ts(repo, sha, ts)
+    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+        # not last cset
+        chain_ats = __get_chain_at_ts(repo, sha, cset_ats.time)
+        stmts_ats = __get_revision(repo, sha, chain_ats)
+
+    # remove blob and cset
+    __remove_cset(repo, sha, ts)
+
+    # if not last cset, re-compute next cset
+    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+        __remove_cset(repo, sha, cset_ats.time)
+        chain = __get_chain_at_ts(repo, sha, cset_ats.time)
+        __save_revision(repo, sha, chain, stmts_ats, cset_ats.time)
+
+    # if all csets removed, remove key from hmap
+    if (cset_ats == None):
+        __cleanup_hmap()

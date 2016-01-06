@@ -53,7 +53,7 @@
         </ol>
       </p>
 
-      <p>For more information on pushing data to a repository, please also refer to the official <a href="https://github.com/pmeinhardt/tlr#push-api">project readme</a>.</p>
+      <p>For more information on pushing data to a repository, please also refer to the official <a href="https://github.com/SemanticMultimedia/tlr#push-api">project readme</a>.</p>
     </div>
 
     <pre><code class="bash"># export the token for later use
@@ -73,6 +73,7 @@ curl -X DELETE \
     {% end %}
 
     <div class="panel panel-default">
+      <div class="panel-heading">Memento API</div>
       <div class="panel-body">
         <h4>Reading resource states from {{ repo.name }}</h4>
         <p>Prior states of <em>linked data</em> resources tracked in this repository are accessible through a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a> API.</p>
@@ -100,7 +101,39 @@ curl -X DELETE \
       </ul>
       {% end %}
     </div>
+
+    {% if current_user == repo.user %}
+    <hr>
+
+    <div class="panel panel-danger">
+      <div class="panel-heading">Danger Zone</div>
+      <div class="panel-body">
+        <h4>Delete this repository</h4>
+          <button data-toggle="collapse" data-target="#delete_repo_confirm" class="btn btn-danger btn-xs pull-right">Delete this repository</button>
+          <p>Once you delete a repository, there is no going back. Please be certain.</p>
+        <div id="delete_repo_confirm" class="collapse">
+          <h3>Are you absolutely sure?</h3>
+            <div class="alert alert-warning">
+                Unexpected bad things will happen if you don’t read this!
+            </div>
+            <p>This action <strong>CANNOT</strong> be undone. This will permanently delete the <strong>{{ repo.user.name }}<span class="path-divider">/</span>{{ repo.name }}</strong> repository and remove all contained data.</p>
+            <p>Please type in the name of the repository to confirm.</p>
+          <form action="{{ reverse_url("web:del-repo", repo.user.name, repo.name) }}" data-toggle="validator" method="post">
+          {% module xsrf_form_html() %}
+          <div class="form-group">
+            <input type="text" class="form-control" autofocus required pattern="{{ repo.name }}" data-match-error="Type in the name of the repository (omit the user name) to confirm that you want to delete this repository." name="verify">
+            <div class="help-block with-errors"></div>
+          </div>
+          <div class="form-group">
+            <button type="submit" class="btn btn-danger btn-block btn-primary">I understand the consequences, delete this repository</button>
+          </div>
+        </form>
+        </div>
+      </div>
+    </div>
+    {% end %}
   </div>
+
 </div>
 {% end %}
 
