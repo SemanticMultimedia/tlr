@@ -8,6 +8,7 @@ import traceback
 from tornado.web import HTTPError
 from tornado.escape import url_escape, json_encode
 #from peewee import IntegrityError, SQL, fn
+from peewee import IntegrityError
 
 from models import User, Token, Repo, HMap, CSet, Blob
 from handlers import RequestHandler

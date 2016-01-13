@@ -138,6 +138,8 @@ def __get_chain_last_cset(repo, sha):
     return last
 
 def __get_blobs(repo, sha, chain):
+    #logger.info(":: get_blobs")
+
     blobs = (Blob
         .select(Blob.data)
         .where(
@@ -150,6 +152,8 @@ def __get_blobs(repo, sha, chain):
 
 '''get revision as set of statements'''
 def get_revision(repo, key, chain):
+    #logger.info(":: get_revision")
+
     sha = __get_shasum(key)
     return __get_revision(repo, sha, chain)
 
@@ -272,7 +276,7 @@ def __save_revision(repo, sha, chain, stmts, ts):
         patch = ""
     else:
         # Reconstruct the previous state of the resource
-        prev = get_revision(repo, sha, chain)
+        prev = __get_revision(repo, sha, chain)
 
         if stmts == prev:
             # No changes, nothing to be done. Bail out.
