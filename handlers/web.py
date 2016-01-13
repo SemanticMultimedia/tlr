@@ -113,7 +113,7 @@ class RepoHandler(BaseHandler):
                 self.render("repo/show.html", title=title, repo=repo,
                     samples=list(samples))
         except Repo.DoesNotExist:
-            raise HTTPError(404)
+            raise HTTPError(reason="Repo not found.", status_code=404)
 
 class CreateRepoHandler(BaseHandler):
     @authenticated
@@ -147,7 +147,7 @@ class DelRepoHandler(BaseHandler):
                 raise HTTPError(reason="Repo not found.", status_code=404)
             logger.info(repo.name)
             if (repo.name == verify):
-                #revision_logic.remove_repo(repo)
+                revision_logic.remove_repo(repo)
                 self.redirect(self.reverse_url("web:user", user.name))
             else:
                 raise HTTPError(501)
