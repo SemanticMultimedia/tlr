@@ -185,7 +185,7 @@ class RepoHandler(BaseHandler):
 
         chain = revision_logic.get_chain_at_ts(repo, key, ts)
 
-        if chain == None:
+        if len(chain) == 0:
             raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
         timegate_url = (self.request.protocol + "://" +
@@ -205,7 +205,7 @@ class RepoHandler(BaseHandler):
         if chain[0].type == CSet.DELETE:
             # The last change was a delete. Return a 404 response with
             # appropriate "Link" and "Memento-Datetime" headers.
-            raise HTTPError(reason="Resource not exists at time.", status_code=404)
+            raise HTTPError(reason="Resource not exists at time (has been deleted).", status_code=404)
 
         stmts = revision_logic.get_revision(repo, key, chain)
 

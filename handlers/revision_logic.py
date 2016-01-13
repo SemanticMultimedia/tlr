@@ -55,7 +55,7 @@ def join(parts, sep):
 def get_repo(username, reponame):
     try:
         repo = (Repo
-            .select(Repo.id)
+            .select()
             .join(User)
             .where((User.name == username) & (Repo.name == reponame))
             .naive()
@@ -91,9 +91,7 @@ def __get_chain_at_ts(repo, sha, ts):
             )))
         .order_by(CSet.time)
         .naive())
-    if len(chain) == 0:
-        # A resource does not exist for the given key.
-        return None
+    
     return chain
 
 def get_chain_tail(repo, key):
@@ -117,9 +115,7 @@ def __get_chain_tail(repo, sha):
                 )))
             .order_by(CSet.time)
             .naive())
-    if len(chain) == 0:
-        # A resource does not exist for the given key.
-        return None
+
     return chain
 
 def get_chain_last_cset(repo, key):
@@ -242,15 +238,13 @@ def get_repo_index(repo, ts, page):
 
 def save_revision(repo, key, chain, stmts, ts):
     sha = __get_shasum(key)
-    return __save_revision(repo, sha, chain, stmts, ts)
 
-def __save_revision(repo, sha, chain, stmts, ts):
     # TODO: Allow adding revisions with datetime prior to latest #2
-    if len(chain) > 0 and not ts > chain[-1].time:
+    if chain and len(chain) > 0 and not ts > chain[-1].time:
         # Appended timestamps must be monotonically increasing!
         raise ValueError
 
-    if len(chain) == 0:
+    if chain == None or len(chain) == 0:
         # Mapping for `key` likely does not exist:
         # Store the SHA-to-KEY mapping in HMap,
         # looking out for possible collisions.
@@ -263,6 +257,14 @@ def __save_revision(repo, sha, chain, stmts, ts):
                    .scalar())
             if val != key:
                 raise IntegrityError
+
+    return __save_revision(repo, sha, chain, stmts, ts)
+
+def __save_revision(repo, sha, chain, stmts, ts):
+    # TODO: Allow adding revisions with datetime prior to latest #2
+    if chain and len(chain) > 0 and not ts > chain[-1].time:
+        # Appended timestamps must be monotonically increasing!
+        raise ValueError
 
     if len(chain) == 0 or chain[0].type == CSet.DELETE:
         # Provide dummy value for `patch` which is never stored.
