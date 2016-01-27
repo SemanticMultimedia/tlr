@@ -8,62 +8,16 @@ from database import MDB as Database
 
 from config import settings, dbconf, bsconf
 from models import *
-
 import models
 
-database = Database(**dbconf)
-blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
-models.initialize(database, blobstore)
-
-
-# import requests
-
-# # os.environ["COOKIE_SECRET"] = "secret"
-# # os.environ["GITHUB_CLIENT_ID"] = "x"
-# # os.environ["GITHUB_SECRET"] = "y"
-# os.environ["DATABASE_URL"] = "mysql://Oleg1@localhost/db1"
-
-# from database import MDB as Database
-
-# # from config import dbconf, bsconf
-# from models import *
-# import models
-
-# from peewee import *
-# from database import *
-# from peewee import fn
-# from playhouse.db_url import connect
-
-
-# import tornado.testing
 import unittest
 import requests
 import json
 
-# # database = Database(**dbconf)
-# # dbproxy = Proxy()
-# # dbproxy.initialize(database)
 
-# databse = connect("mysql://tailr:tailr@db/tailr")
-
-# # blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
-# # models.initialize(database, blobstore)
-# # database.create_tables([
-# #     User,
-# #     Token,
-# #     Repo,
-# #     HMap,
-# #     CSet,
-# #     Blob,
-# # ])
-
-
-
-user1 = User()
-user2 = User()
-repo1 = Repo()
-repo2 = Repo()
-token = Token()
+database = Database(**dbconf)
+blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
+models.initialize(database, blobstore)
 
 
 def seed():
@@ -73,6 +27,12 @@ def seed():
 	repo1 = Repo.create(user=user1, name="repo1", desc="important description")
 	repo2 = Repo.create(user=user2, name="repo2", desc="important description")
 
+
+user1 = User()
+user2 = User()
+repo1 = Repo()
+repo2 = Repo()
+token = Token()
 # TODO for local testing check if db is freshly initialized, or has already been seeded  
 seed()
 
@@ -81,7 +41,7 @@ class Authorized(unittest.TestCase):
 
 	#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
 	# unittest module does sort the tests with cmp()
-	# therefore tests are orderer by naming them testXYZ
+	# therefore tests are orderer by naming them test000
 	# third digit is there to slot tests in
 	#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
 
@@ -97,13 +57,15 @@ class Authorized(unittest.TestCase):
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
 	uploadDateString = "2013-07-12-00:00:00"
-	uploadDateString2 = "2014-08-13-00:00:00"
+	uploadDateString2 = "2013-07-13-00:00:00"
+	uploadDateString3 = "2013-07-11-00:00:00"
 
 	params_key = {'key':key}
 	params_key_timemap = {'key':key, 'timemap': "true"}
 	params_index = {'index': "true"}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
+	params_datetime3 = {'key':key,'datetime':uploadDateString3}
 	empty_params = {}
 
 	contentType = "application/n-triples"
@@ -112,47 +74,73 @@ class Authorized(unittest.TestCase):
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
 	notExistingRepo = "http://localhost:5000/api/user1/XXX"
 
-	# payload = set()
-	# payload.add("<www.example.com> <http://www.w3.org/2002/07/owl#onProperty> <http://qudt.org/schema/qudt#default> .")
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
-	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."
-
-	# def uploadValid(self):
-	# 	r = request.put(apiURI, params=params, headers=header, data=payload)
-	# 	# r = request.put(apiURI, params=params, headers=header)
-	# 	self.assertEqual(r.status_code, 500)
+	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 
 	@staticmethod
-	def numberOfCSets(repo):
+	def numberOfCSetsForRepo(repo):
 		cs = CSet.select().where(CSet.repo == repo)
-		# print ("count of changesets for "+repo.name+" = "+cs.count())
 		return cs.count()
 
+	@staticmethod
+	def numberOfHMaps():
+		hmaps = HMap.select().where(HMap.val != "")
+		return hmaps.count()
+
+	@staticmethod
+	def numberOfBlobsForRepo(repo):
+		blobs = Blob.select().where(Blob.repo == repo)
+		return blobs.count()		
+
+
+
+
+	def test000_no_hmap_entry_on_start(self):
+		self.assertEqual(self.numberOfHMaps(),0)
+
+	def test001_no_cset_entry_on_start(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),0)
+
+	def test002_no_blob_entry_on_start(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),0)
 
 	def test010_put_on_empty(self):
 		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload2)
 		self.assertEqual(r.status_code, 200)
 
 	def test011_number_of_changesets_is_set(self):
-		self.assertEqual(self.numberOfCSets(self.repo),1)
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1)
 
-		
+	def test012_hmap_entry_exists(self):
+		self.assertEqual(self.numberOfHMaps(),1)
+
+	def test013_blob_entry_exists(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1)
+
+
+
 	def test020_put_on_existing(self):
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
 		self.assertEqual(r.status_code, 200, msg=r.reason)
 
+	def test021_no_hmap_entry_for_existing_push(self):
+		self.assertEqual(self.numberOfHMaps(),1)
 
-	def test021_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSets(self.repo),2)
+	def test022_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2)
+
+	def test023_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2)
 
 
-	def test030_get_repo_index(self):
+
+	def test040_get_repo_index(self):
 		r = requests.get(self.apiURI, params=self.params_index)
 		# only one key in repo
 		self.assertEqual(len(r.text.splitlines()), 1)
 
 
-	def test040_get_repo_timemap(self):
+	def test050_get_repo_timemap(self):
 		r = requests.get(self.apiURI, params=self.params_key_timemap)
 		resjson = json.loads(r.text)
 		# 2 revisions pushed
@@ -160,24 +148,35 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(len(resjson[u'mementos'][u'list']), 2)
 		
 
-	# TODO GET repo ?key mementos on several times (&datetime)
+	def test060_get_repo_key_memento_with_datetime(self):
+		r = requests.get(self.apiURI, params=self.params_datetime)
+		self.assertEqual(r.text, self.payload2)
 
-	# TODO GET repo ?key without datetime and timestamp
-	#last memento for key should be shown
+	def test061_get_repo_key_memento_with_datetime_inbetween(self):
+		#datetimeparam not exactly that of memento but a day after. tailr should chose the last one
+		r = requests.get(self.apiURI, params=self.params_datetime2)
+		self.assertEqual(r.text, self.payload2)
+
+	def test062_get_repo_key_memento_without_datetime(self):
+		# if nothing else is given, the last memento shouldbe returned
+		r = requests.get(self.apiURI, params=self.params_key)
+		self.assertEqual(r.text, self.payload)
+
+	def test061_get_repo_key_memento_with_datetime_before(self):
+		# if get query timestamp is before first revision there is no resource
+		r = requests.get(self.apiURI, params=self.params_datetime3)
+		self.assertEqual(r.status_code, 404)
 
 
 
-
-	# def test_delete_():
-	# 	pass
-
-	# 
-	# 
-	# 
 	# TODO Also check content of db not only request
-	# 
-	# 
-	# 
+
+	# TODO def test_delete_():
+	# TODO get after delete and expect deleted resource
+
+
+	#TODO uploading without timestamp uploads to current time
+
 
 
 	def test_put_unowned_repo(self):
@@ -204,6 +203,19 @@ class Authorized(unittest.TestCase):
 		r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
 		self.assertEqual(r.status_code, 400)
 
+
+	def test_get_bad_request_index_and_timestamp(self):
+		r = requests.get(self.apiURI+"?timemap=true&index=true")
+		self.assertEqual(r.status_code, 400)
+
+
+	def test_get_bad_request_index_and_key(self):
+		r = requests.get(self.apiURI+"?key="+self.key+"&index=true")
+		self.assertEqual(r.status_code, 400)
+
+	def test_get_bad_request_timemap_and_not_key(self):
+		r = requests.get(self.apiURI+"?timemap=true")
+		self.assertEqual(r.status_code, 400)
 
 	# TODO raise 400 three times if (index and timemap) or (index and key) or (timemap and not key):
             # raise HTTPError(reason="Invalid arguments.", status_code=400)
@@ -255,6 +267,9 @@ class Unauthorized(unittest.TestCase):
 # #
 
 # # push invalid data and check response
+
+
+
 
 
 if __name__ == '__main__':
