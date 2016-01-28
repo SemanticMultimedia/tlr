@@ -13,6 +13,8 @@ import models
 import unittest
 import requests
 import json
+import datetime
+
 
 
 database = Database(**dbconf)
@@ -37,6 +39,7 @@ token = Token()
 seed()
 
 
+# Fixture for Athorized pushing 
 class Authorized(unittest.TestCase):
 
 	#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
@@ -90,82 +93,98 @@ class Authorized(unittest.TestCase):
 	@staticmethod
 	def numberOfBlobsForRepo(repo):
 		blobs = Blob.select().where(Blob.repo == repo)
-		return blobs.count()		
+		return blobs.count()
+
+	@staticmethod
+	def getLastCSetForRepo(repo):
+		return CSet.select().where(CSet.repo == repo).order_by(CSet.time.desc()).get()
+
 
 
 
 
 	def test000_no_hmap_entry_on_start(self):
-		self.assertEqual(self.numberOfHMaps(),0)
+		self.assertEqual(self.numberOfHMaps(),0,"hmap table has entries initially")
 
 	def test001_no_cset_entry_on_start(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),0)
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),0, "cset table has entries initially")
 
 	def test002_no_blob_entry_on_start(self):
-		self.assertEqual(self.numberOfBlobsForRepo(self.repo),0)
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),0,"blob table has entries initially")
 
 	def test010_put_on_empty(self):
+		# put with timestamp
 		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload2)
-		self.assertEqual(r.status_code, 200)
+		self.assertEqual(r.status_code, 200, "putting on an empty repo does not return httpcode 200")
 
 	def test011_number_of_changesets_is_set(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1)
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1, "pushing on empty repo did not create a changeset")
 
 	def test012_hmap_entry_exists(self):
-		self.assertEqual(self.numberOfHMaps(),1)
+		self.assertEqual(self.numberOfHMaps(),1, "pushing on empty repo did not create a hmap entry")
 
 	def test013_blob_entry_exists(self):
-		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1)
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on empty repo did not create a blob")
 
 
 
 	def test020_put_on_existing(self):
+		# put without timestamp (to current time)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 200, msg=r.reason)
+		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200")
 
-	def test021_no_hmap_entry_for_existing_push(self):
-		self.assertEqual(self.numberOfHMaps(),1)
+	def test021_timestamp_equals_current_time(self):
+		cset= self.getLastCSetForRepo(self.repo)
+		# python creates pythonic timedelta object
+		# test for 2 seconds, although most times only miliseconds pass until here
+		timeDiff = (datetime.datetime.now() - cset.time)
+		lessThan2SecondsPassed = timeDiff.total_seconds() < 2
+		self.assertTrue(lessThan2SecondsPassed, "Cset was not created on current time")
 
-	def test022_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2)
+	def test022_no_hmap_entry_for_existing_push(self):
+		self.assertEqual(self.numberOfHMaps(),1, "pushing on existing repo did not create a hmap entry")
 
-	def test023_number_of_blobs_increased(self):
-		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2)
+	def test023_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing on existing repo did not create a changeset")
+
+	def test024_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing on existing repo did not create a blob")
 
 
 
 	def test040_get_repo_index(self):
 		r = requests.get(self.apiURI, params=self.params_index)
 		# only one key in repo
-		self.assertEqual(len(r.text.splitlines()), 1)
+		self.assertEqual(len(r.text.splitlines()), 1, "wrong number of keys in repo (returned via GET index page of repo)")
 
 
 	def test050_get_repo_timemap(self):
 		r = requests.get(self.apiURI, params=self.params_key_timemap)
 		resjson = json.loads(r.text)
 		# 2 revisions pushed
-		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as an string
-		self.assertEqual(len(resjson[u'mementos'][u'list']), 2)
+		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
+		self.assertEqual(len(resjson[u'mementos'][u'list']), 2, "wrong number of mementos in repo,key (returned via GET timemap page of key)")
 		
 
 	def test060_get_repo_key_memento_with_datetime(self):
+		# datetimeparam is the exact one 
 		r = requests.get(self.apiURI, params=self.params_datetime)
-		self.assertEqual(r.text, self.payload2)
+		self.assertEqual(r.text, self.payload2, "GET memento with datetime param returns the wrong memento")
 
 	def test061_get_repo_key_memento_with_datetime_inbetween(self):
-		#datetimeparam not exactly that of memento but a day after. tailr should chose the last one
+		# datetimeparam not exactly that of memento but a day after. tailr should chose the last one
 		r = requests.get(self.apiURI, params=self.params_datetime2)
-		self.assertEqual(r.text, self.payload2)
+		self.assertEqual(r.text, self.payload2, "GET memento with datetime param between two mementos returns the wrong memento")
 
 	def test062_get_repo_key_memento_without_datetime(self):
 		# if nothing else is given, the last memento shouldbe returned
 		r = requests.get(self.apiURI, params=self.params_key)
-		self.assertEqual(r.text, self.payload)
+		self.assertEqual(r.text, self.payload, "GET memento without datetime param returns the wrong memento")
 
 	def test061_get_repo_key_memento_with_datetime_before(self):
 		# if get query timestamp is before first revision there is no resource
 		r = requests.get(self.apiURI, params=self.params_datetime3)
-		self.assertEqual(r.status_code, 404)
+		self.assertEqual(r.status_code, 404, "GET memento with invalid (too early) datetime does not respond with 404")
 
 
 
@@ -183,17 +202,17 @@ class Authorized(unittest.TestCase):
 		# unauthorized because of unowned repo
 		# 403 write access fordbidden
 		r = requests.put(self.apiURI2, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 403)
+		self.assertEqual(r.status_code, 403, "PUT to unownded repo does not return 403 (write access forbidden)")
 
 	def test_put_without_key(self):
 		# 400 Bad Request
 		r = requests.put(self.apiURI, params=self.empty_params, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400)
+		self.assertEqual(r.status_code, 400, "PUT without key does not return 400")
 
 	def test_put_unexisting_repo(self):
 		# 404
 		r = requests.put(self.notExistingRepo, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 404)
+		self.assertEqual(r.status_code, 404, "PUT to unexisting repo does not return 404")
 
 	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
 	def test030_put_with_older_timestamp(self):
@@ -201,21 +220,21 @@ class Authorized(unittest.TestCase):
 		uploadDateString = "2012-07-12-00:00:00"
 		params_datetime = {'key':self.key,'datetime':uploadDateString}
 		r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400)
+		self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400")
 
 
 	def test_get_bad_request_index_and_timestamp(self):
 		r = requests.get(self.apiURI+"?timemap=true&index=true")
-		self.assertEqual(r.status_code, 400)
+		self.assertEqual(r.status_code, 400, "Bad GET request with index and timestamp =true does not return 400")
 
 
 	def test_get_bad_request_index_and_key(self):
 		r = requests.get(self.apiURI+"?key="+self.key+"&index=true")
-		self.assertEqual(r.status_code, 400)
+		self.assertEqual(r.status_code, 400, "Bad GET request with index=true and key set does not return 400")
 
 	def test_get_bad_request_timemap_and_not_key(self):
 		r = requests.get(self.apiURI+"?timemap=true")
-		self.assertEqual(r.status_code, 400)
+		self.assertEqual(r.status_code, 400, "Bad GET request with timemap=true and no key set does not return 400")
 
 	# TODO raise 400 three times if (index and timemap) or (index and key) or (timemap and not key):
             # raise HTTPError(reason="Invalid arguments.", status_code=400)
@@ -243,7 +262,7 @@ class Unauthorized(unittest.TestCase):
 		# unauthorized because of wrong token
 		# 401 unauthorized
 		r = requests.put(self.apiURI, params=self.params, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 401)
+		self.assertEqual(r.status_code, 401, "PUT with wrong token does not return 401")
 
 
 
