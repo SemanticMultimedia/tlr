@@ -9,10 +9,14 @@ from tornado.web import HTTPError
 from tornado.escape import url_escape, json_encode
 #from peewee import IntegrityError, SQL, fn
 from peewee import IntegrityError
+from RDF import RedlandError
 
 from models import User, Token, Repo, HMap, CSet, Blob
 from handlers import RequestHandler
 import revision_logic
+
+import logging
+logger = logging.getLogger('debug')
 
 def authenticated(method):
     """Decorate API methods to require user authentication via token."""
@@ -307,7 +311,11 @@ class RepoHandler(BaseHandler):
         chain = revision_logic.get_chain_tail(repo, key)
 
         # Parse and normalize into a set of N-Quad lines
-        stmts = revision_logic.parse(self.request.body, fmt)
+        try:
+            stmts = revision_logic.parse(self.request.body, fmt)
+        except RedlandError, e:
+            # TODO decide about error code. This is actual a client side error --> 4XX
+            raise HTTPError(reason="Error while parsing payload: "+e.value, status_code=500)
 
         try:
             prev_state = revision_logic.save_revision(repo, key, chain, stmts, ts)

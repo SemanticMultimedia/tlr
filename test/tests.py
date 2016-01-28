@@ -21,6 +21,10 @@ database = Database(**dbconf)
 blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
+# for local testing
+# os.system(parentdir+"/unprepare.py")
+# os.system(parentdir+"/prepare.py")
+
 
 def seed():
 	user1 = User.create(name="user1", confirmed=True, github_id="1234", email="user1@example.com")
@@ -78,6 +82,7 @@ class Authorized(unittest.TestCase):
 	notExistingRepo = "http://localhost:5000/api/user1/XXX"
 
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	# payload = " "
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 
 	@staticmethod
@@ -131,7 +136,7 @@ class Authorized(unittest.TestCase):
 	def test020_put_on_existing(self):
 		# put without timestamp (to current time)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200")
+		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200\n"+r.reason)
 
 	def test021_timestamp_equals_current_time(self):
 		cset= self.getLastCSetForRepo(self.repo)
@@ -196,6 +201,8 @@ class Authorized(unittest.TestCase):
 
 	#TODO uploading without timestamp uploads to current time
 
+
+	# TODO Test all sorts of datatypes that tailr accepts
 
 
 	def test_put_unowned_repo(self):

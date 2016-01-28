@@ -6,6 +6,9 @@ from models import User, Token, Repo, HMap, CSet, Blob
 from peewee import IntegrityError, SQL, fn
 import RDF
 
+# import logging
+# logger = logging.getLogger('debug')
+
 # This factor (among others) determines whether a snapshot is stored rather
 # than a delta, depending on the size of the latest snapshot and subsequent
 # deltas. For the latest snapshot `base` and deltas `d1`, `d2`, ..., `dn`
