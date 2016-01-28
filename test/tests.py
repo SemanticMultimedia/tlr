@@ -22,8 +22,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-# os.system(parentdir+"/unprepare.py")
-# os.system(parentdir+"/prepare.py")
+os.system(parentdir+"/unprepare.py")
+os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -61,6 +61,10 @@ class Authorized(unittest.TestCase):
 	repo = (Repo.select(Repo.id).where((Repo.name == "repo1")).naive().get())
 	
 	key = "http://rdf.data-vocabulary.org/"
+	key_ttl = "http://www.w3.org/TR/rdf-syntax-grammar"
+
+	ttlFile = "example.ttl"
+
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
 	uploadDateString = "2013-07-12-00:00:00"
@@ -70,20 +74,23 @@ class Authorized(unittest.TestCase):
 	params_key = {'key':key}
 	params_key_timemap = {'key':key, 'timemap': "true"}
 	params_index = {'index': "true"}
+	params_ttl = {'key': key_ttl}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
 	empty_params = {}
 
-	contentType = "application/n-triples"
-	header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
+	contentType_ntriples = "application/n-triples"
+	header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType_ntriples}
+	header_ttl = {'Authorization':"token "+tailrToken, 'Content-Type':"text/turtle"}
 	apiURI = "http://localhost:5000/api/"+userName+"/"+repoName
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
 	notExistingRepo = "http://localhost:5000/api/user1/XXX"
 
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
-	# payload = " "
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
+	payload_compromised_missing_dot = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> "
 
 	@staticmethod
 	def numberOfCSetsForRepo(repo):
@@ -192,14 +199,62 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(r.status_code, 404, "GET memento with invalid (too early) datetime does not respond with 404")
 
 
+	def test070_put_exact_same_data(self):
+		# this is a perfect legitimate request, should return 200
+		# crucial point is, what happens in the database --> see next tests
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 200, "putting same payload on an existing repo does not return httpcode 200\n"+r.reason)
 
-	# TODO Also check content of db not only request
+	def test071_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing same data to repo did create a changeset")
+
+	def test072_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing same data to repo did create a blob")
+	
+
+	def test_080_put_compromised_data(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_angle_bracket)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '>') does not respond with 500")
+
+	def test081_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a changeset")
+
+	def test082_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a blob")
+
+	def test_090_put_compromised_data2(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_dot)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '.') does not respond with 500")
+
+	def test091_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a changeset")
+
+	def test092_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a blob")
+
+
+
+	def test100_put_ttl(self):
+		r = requests.put(self.apiURI, params=self.params_ttl, headers=self.header_ttl, data=open(self.ttlFile, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+
+	def test101_hmap_entry_added(self):
+		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl with new key on repo did not create a hmap entry")
+
+	def test102_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a blob")
+
+	def test103_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a changeset")
+
+
+	# TODO check for specific csets and hmaps not only for count of whole repo 
 
 	# TODO def test_delete_():
 	# TODO get after delete and expect deleted resource
 
+	# TODO check if snapshots and deltas are created as wanted, somehow dorce a second snapshot after initial one
 
-	#TODO uploading without timestamp uploads to current time
 
 
 	# TODO Test all sorts of datatypes that tailr accepts

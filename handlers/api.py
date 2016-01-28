@@ -314,8 +314,8 @@ class RepoHandler(BaseHandler):
         try:
             stmts = revision_logic.parse(self.request.body, fmt)
         except RedlandError, e:
-            # TODO decide about error code. This is actual a client side error --> 4XX
-            raise HTTPError(reason="Error while parsing payload: "+e.value, status_code=500)
+            # TODO decide about error code. This is actual a client side error (4XX), but also not a bad request as such
+            raise HTTPError(reason="Error while parsing payload: " + e.value, status_code=500)
 
         try:
             prev_state = revision_logic.save_revision(repo, key, chain, stmts, ts)
