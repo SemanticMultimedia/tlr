@@ -63,7 +63,8 @@ class Authorized(unittest.TestCase):
 	key = "http://rdf.data-vocabulary.org/"
 	key_ttl = "http://www.w3.org/TR/rdf-syntax-grammar"
 
-	ttlFile = "example.ttl"
+	ttlFile = "test/example.ttl"
+	ttlFile2 = "test/example2.ttl"
 
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
@@ -75,6 +76,7 @@ class Authorized(unittest.TestCase):
 	params_key_timemap = {'key':key, 'timemap': "true"}
 	params_index = {'index': "true"}
 	params_ttl = {'key': key_ttl}
+	params_ttl_datetime = {'key': key_ttl,'datetime':uploadDateString}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
@@ -212,7 +214,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing same data to repo did create a blob")
 	
 
-	def test_080_put_compromised_data(self):
+	def test080_put_compromised_data(self):
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_angle_bracket)
 		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '>') does not respond with 500")
 
@@ -222,7 +224,7 @@ class Authorized(unittest.TestCase):
 	def test082_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a blob")
 
-	def test_090_put_compromised_data2(self):
+	def test090_put_compromised_data2(self):
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_dot)
 		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '.') does not respond with 500")
 
@@ -235,8 +237,8 @@ class Authorized(unittest.TestCase):
 
 
 	def test100_put_ttl(self):
-		r = requests.put(self.apiURI, params=self.params_ttl, headers=self.header_ttl, data=open(self.ttlFile, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+		r = requests.put(self.apiURI, params=self.params_ttl_datetime, headers=self.header_ttl, data=open(self.ttlFile2, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+r.reason)
 
 	def test101_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl with new key on repo did not create a hmap entry")
@@ -246,6 +248,22 @@ class Authorized(unittest.TestCase):
 
 	def test103_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a changeset")
+
+
+
+	def test110_put_ttl_on_existing(self):
+		r = requests.put(self.apiURI, params=self.params_ttl, headers=self.header_ttl, data=open(self.ttlFile, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+
+	def test111_no_hmap_entry_added(self):
+		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl on existing key on repo did create a hmap entry")
+
+	def test112_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),4, "pushing ttl with existing key did not create a blob")
+
+	def test113_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),4, "pushing ttl with existing key on existing repo did not create a changeset")
+
 
 
 	# TODO check for specific csets and hmaps not only for count of whole repo 
