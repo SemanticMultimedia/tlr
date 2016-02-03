@@ -62,9 +62,12 @@ class Authorized(unittest.TestCase):
 	
 	key = "http://rdf.data-vocabulary.org/"
 	key_ttl = "http://www.w3.org/TR/rdf-syntax-grammar"
+	key_xml = "http://www.w3.org/TR/rdf-syntax-grammarXML"
 
 	ttlFile = "test/example.ttl"
 	ttlFile2 = "test/example2.ttl"
+	xmlFile = "test/example.xml"
+	xmlFile2 = "test/example2.xml"
 
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
@@ -77,6 +80,8 @@ class Authorized(unittest.TestCase):
 	params_index = {'index': "true"}
 	params_ttl = {'key': key_ttl}
 	params_ttl_datetime = {'key': key_ttl,'datetime':uploadDateString}
+	params_xml = {'key': key_xml}
+	params_xml_datetime = {'key': key_xml,'datetime':uploadDateString}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
@@ -85,6 +90,7 @@ class Authorized(unittest.TestCase):
 	contentType_ntriples = "application/n-triples"
 	header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType_ntriples}
 	header_ttl = {'Authorization':"token "+tailrToken, 'Content-Type':"text/turtle"}
+	header_xml = {'Authorization':"token "+tailrToken, 'Content-Type':"application/rdf+xml"}
 	apiURI = "http://localhost:5000/api/"+userName+"/"+repoName
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
 	notExistingRepo = "http://localhost:5000/api/user1/XXX"
@@ -264,6 +270,37 @@ class Authorized(unittest.TestCase):
 	def test113_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),4, "pushing ttl with existing key on existing repo did not create a changeset")
 
+
+
+
+
+	def test120_put_xml(self):
+		r = requests.put(self.apiURI, params=self.params_xml_datetime, headers=self.header_xml, data=open(self.xmlFile2, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+r.reason)
+
+	def test121_hmap_entry_added(self):
+		self.assertEqual(self.numberOfHMaps(),3, "pushing xml with new key on repo did not create a hmap entry")
+
+	def test122_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),5, "pushing xml with new key on existing repo did not create a blob")
+
+	def test123_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),5, "pushing xml with new key on existing repo did not create a changeset")
+
+
+
+	def test130_put_xml_on_existing(self):
+		r = requests.put(self.apiURI, params=self.params_xml, headers=self.header_xml, data=open(self.xmlFile, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+
+	def test131_no_hmap_entry_added(self):
+		self.assertEqual(self.numberOfHMaps(),3, "pushing xml on existing key on repo did create a hmap entry")
+
+	def test132_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "pushing xml with existing key did not create a blob")
+
+	def test133_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),6, "pushing xml with existing key on existing repo did not create a changeset")
 
 
 	# TODO check for specific csets and hmaps not only for count of whole repo 
