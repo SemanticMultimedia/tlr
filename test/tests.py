@@ -23,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-# os.system(parentdir+"/unprepare.py")
-# os.system(parentdir+"/prepare.py")
+os.system(parentdir+"/unprepare.py")
+os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -99,7 +99,11 @@ class Authorized(unittest.TestCase):
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
-	payload_compromised_missing_dot = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> "
+	payload_compromised_wrong_blankNode = ":ab123 <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."
+	payload_compromised_missing_object = "_:ab123 <http://data.bnf.fr/vocabulary/roles/r70> . "
+	payload_compromised_wrong_uri = "<data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+
+
 
 	@staticmethod
 	def numberOfCSetsForRepo(repo):
@@ -188,7 +192,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(len(r.text.splitlines()), 1, "wrong number of keys in repo (returned via GET index page of repo)")
 
 
-	def test050_get_repo_timemap(self):
+	def test050_get_repo_key_timemap(self):
 		r = requests.get(self.apiURI, params=self.params_key_timemap)
 		resjson = json.loads(r.text)
 		# 2 revisions pushed
@@ -207,7 +211,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(r.text, self.payload2, "GET memento with datetime param between two mementos returns the wrong memento")
 
 	def test062_get_repo_key_memento_without_datetime(self):
-		# if nothing else is given, the last memento shouldbe returned
+		# if nothing else is given, the last memento should be returned
 		r = requests.get(self.apiURI, params=self.params_key)
 		self.assertEqual(r.text, self.payload, "GET memento without datetime param returns the wrong memento")
 
@@ -243,18 +247,24 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a blob")
 
 
+	def test083_put_compromised_data2(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_wrong_blankNode)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (wrong blank node) does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	# Parser actually can handle dots. Initially server responded with 500 anyways, but due to timestamp inconsistency
+	def test084_put_compromised_data3(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_object)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (missing object in n-triple) does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	# def test090_put_compromised_data2(self):
-	# 	r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_dot)
-	# 	self.assertEqual(r.status_code, 500, "PUT compromised data (missing '.') does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+	def test085_put_compromised_data4(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_wrong_uri)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (missing object in n-triple) does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	# def test091_number_of_csets_not_changed(self):
-	# 	self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a changeset")
+	def test086_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing object in n-triple) to repo did create a changeset")
 
-	# def test092_number_of_blobs_not_changed(self):
-	# 	self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a blob")
+	def test087_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing object in n-triple) to repo did create a blob")
+
 
 
 
@@ -341,8 +351,7 @@ class Authorized(unittest.TestCase):
 
 	def test140_delete_existing(self):
 		# delete without timestamp (to current time)
-		# wait for a second, because same timestamp will cause integrity error
-		# time.sleep(1)
+		# time.sleep(2)
 		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
 		self.assertEqual(r.status_code, 200, "deleting a key does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
