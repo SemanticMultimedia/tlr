@@ -14,6 +14,7 @@ import unittest
 import requests
 import json
 import datetime
+import time
 
 
 
@@ -22,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-os.system(parentdir+"/unprepare.py")
-os.system(parentdir+"/prepare.py")
+# os.system(parentdir+"/unprepare.py")
+# os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -97,7 +98,7 @@ class Authorized(unittest.TestCase):
 
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
-	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
+	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
 	payload_compromised_missing_dot = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> "
 
 	@staticmethod
@@ -135,7 +136,7 @@ class Authorized(unittest.TestCase):
 	def test010_put_on_empty(self):
 		# put with timestamp
 		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload2)
-		self.assertEqual(r.status_code, 200, "putting on an empty repo does not return httpcode 200")
+		self.assertEqual(r.status_code, 200, "putting on an empty repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test011_number_of_changesets_is_set(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1, "pushing on empty repo did not create a changeset")
@@ -151,7 +152,7 @@ class Authorized(unittest.TestCase):
 	def test020_put_on_existing(self):
 		# put without timestamp (to current time)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test021_timestamp_equals_current_time(self):
 		cset= self.getLastCSetForRepo(self.repo)
@@ -169,6 +170,15 @@ class Authorized(unittest.TestCase):
 
 	def test024_number_of_blobs_increased(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing on existing repo did not create a blob")
+
+
+	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
+	def test030_put_with_older_timestamp(self):
+		# 400 Bad Request
+		uploadDateString = "2012-07-12-00:00:00"
+		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 
@@ -204,14 +214,14 @@ class Authorized(unittest.TestCase):
 	def test061_get_repo_key_memento_with_datetime_before(self):
 		# if get query timestamp is before first revision there is no resource
 		r = requests.get(self.apiURI, params=self.params_datetime3)
-		self.assertEqual(r.status_code, 404, "GET memento with invalid (too early) datetime does not respond with 404")
+		self.assertEqual(r.status_code, 404, "GET memento with invalid (too early) datetime does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 	def test070_put_exact_same_data(self):
 		# this is a perfect legitimate request, should return 200
 		# crucial point is, what happens in the database --> see next tests
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 200, "putting same payload on an existing repo does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting same payload on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test071_number_of_csets_not_changed(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing same data to repo did create a changeset")
@@ -220,9 +230,11 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing same data to repo did create a blob")
 	
 
+
 	def test080_put_compromised_data(self):
+		# time.sleep(1)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_angle_bracket)
-		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '>') does not respond with 500")
+		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '>') does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test081_number_of_csets_not_changed(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a changeset")
@@ -230,21 +242,25 @@ class Authorized(unittest.TestCase):
 	def test082_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data '>' to repo did create a blob")
 
-	def test090_put_compromised_data2(self):
-		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_dot)
-		self.assertEqual(r.status_code, 500, "PUT compromised data (missing '.') does not respond with 500")
 
-	def test091_number_of_csets_not_changed(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a changeset")
 
-	def test092_number_of_blobs_not_changed(self):
-		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a blob")
+	# Parser actually can handle dots. Initially server responded with 500 anyways, but due to timestamp inconsistency
+
+	# def test090_put_compromised_data2(self):
+	# 	r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_missing_dot)
+	# 	self.assertEqual(r.status_code, 500, "PUT compromised data (missing '.') does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	# def test091_number_of_csets_not_changed(self):
+	# 	self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a changeset")
+
+	# def test092_number_of_blobs_not_changed(self):
+	# 	self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing '.') to repo did create a blob")
 
 
 
 	def test100_put_ttl(self):
 		r = requests.put(self.apiURI, params=self.params_ttl_datetime, headers=self.header_ttl, data=open(self.ttlFile2, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test101_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl with new key on repo did not create a hmap entry")
@@ -255,11 +271,16 @@ class Authorized(unittest.TestCase):
 	def test103_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a changeset")
 
+	def test104_get_repo_index(self):
+		r = requests.get(self.apiURI, params=self.params_index)
+		# two keys in repo
+		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
+
 
 
 	def test110_put_ttl_on_existing(self):
 		r = requests.put(self.apiURI, params=self.params_ttl, headers=self.header_ttl, data=open(self.ttlFile, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test111_no_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl on existing key on repo did create a hmap entry")
@@ -270,13 +291,18 @@ class Authorized(unittest.TestCase):
 	def test113_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),4, "pushing ttl with existing key on existing repo did not create a changeset")
 
+	def test114_get_repo_index(self):
+		r = requests.get(self.apiURI, params=self.params_index)
+		# two keys in repo
+		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
+
 
 
 
 
 	def test120_put_xml(self):
 		r = requests.put(self.apiURI, params=self.params_xml_datetime, headers=self.header_xml, data=open(self.xmlFile2, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test121_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),3, "pushing xml with new key on repo did not create a hmap entry")
@@ -287,11 +313,15 @@ class Authorized(unittest.TestCase):
 	def test123_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),5, "pushing xml with new key on existing repo did not create a changeset")
 
+	def test124_get_repo_index(self):
+		r = requests.get(self.apiURI, params=self.params_index)
+		# two keys in repo
+		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
 
 	def test130_put_xml_on_existing(self):
 		r = requests.put(self.apiURI, params=self.params_xml, headers=self.header_xml, data=open(self.xmlFile, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+r.reason)
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test131_no_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),3, "pushing xml on existing key on repo did create a hmap entry")
@@ -302,59 +332,122 @@ class Authorized(unittest.TestCase):
 	def test133_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),6, "pushing xml with existing key on existing repo did not create a changeset")
 
+	def test134_get_repo_index(self):
+		r = requests.get(self.apiURI, params=self.params_index)
+		# two keys in repo
+		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
+
+
+
+	def test140_delete_existing(self):
+		# delete without timestamp (to current time)
+		# wait for a second, because same timestamp will cause integrity error
+		# time.sleep(1)
+		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
+		self.assertEqual(r.status_code, 200, "deleting a key does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test141_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),7, "deleting key on existing repo did not create a changeset")
+
+	def test142_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "deleting key on existing repo did create a blob")
+
+	def test143_get_repo_timemap(self):
+		r = requests.get(self.apiURI, params=self.params_key_timemap)
+		resjson = json.loads(r.text)
+		# 3 revisions pushed
+		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
+		self.assertEqual(len(resjson[u'mementos'][u'list']), 3, "wrong number of mementos in repo,key (returned via GET timemap page of key) after delete")
+
+	def test144_get_repo_key_memento_after_delete(self):
+		# if get query timestamp is before first revision there is no resource
+		r = requests.get(self.apiURI, params=self.params_key)
+		self.assertEqual(r.status_code, 404, "GET memento with after deletion does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+
+
+	def test150_delete_existing_after_delete(self):
+		# delete without timestamp (to current time)
+		# wait for a second, because same timestamp will cause integrity error
+		# time.sleep(1)
+		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
+		self.assertEqual(r.status_code, 200, "deleting a key after a delete does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+
+
+	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
+	def test160_delete_with_older_timestamp(self):
+		# 400 Bad Request
+		uploadDateString = "2012-07-12-00:00:00"
+		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
+		self.assertEqual(r.status_code, 400, "DELETE with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+
+	# TODO send delete requests and check responses
+
 
 	# TODO check for specific csets and hmaps not only for count of whole repo 
 
 	# TODO def test_delete_():
 	# TODO get after delete and expect deleted resource
 
-	# TODO check if snapshots and deltas are created as wanted, somehow dorce a second snapshot after initial one
+	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
 
-
-
-	# TODO Test all sorts of datatypes that tailr accepts
 
 
 	def test_put_unowned_repo(self):
 		# unauthorized because of unowned repo
 		# 403 write access fordbidden
 		r = requests.put(self.apiURI2, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 403, "PUT to unownded repo does not return 403 (write access forbidden)")
+		self.assertEqual(r.status_code, 403, "PUT to unownded repo does not return 403 (write access forbidden)\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test_delete_unowned_repo(self):
+		# unauthorized because of unowned repo
+		# 403 write access fordbidden
+		r = requests.delete(self.apiURI2, params=self.params_key, headers=self.header)
+		self.assertEqual(r.status_code, 403, "DELETE on unownded repo does not return 403 (write access forbidden)\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test_put_without_key(self):
 		# 400 Bad Request
 		r = requests.put(self.apiURI, params=self.empty_params, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400, "PUT without key does not return 400")
+		self.assertEqual(r.status_code, 400, "PUT without key does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test_delete_without_key(self):
+		# 400 Bad Request
+		r = requests.delete(self.apiURI, params=self.empty_params, headers=self.header)
+		self.assertEqual(r.status_code, 400, "DELETE without key does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test_put_unexisting_repo(self):
 		# 404
 		r = requests.put(self.notExistingRepo, params=self.params_key, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 404, "PUT to unexisting repo does not return 404")
+		self.assertEqual(r.status_code, 404, "PUT to unexisting repo does not return 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
-	def test030_put_with_older_timestamp(self):
-		# 400 Bad Request
-		uploadDateString = "2012-07-12-00:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
-		r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400")
+	def test_delete_unexisting_repo(self):
+		# 404
+		r = requests.delete(self.notExistingRepo, params=self.params_key, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 404, "PUT to unexisting repo does not return 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 	def test_get_bad_request_index_and_timestamp(self):
 		r = requests.get(self.apiURI+"?timemap=true&index=true")
-		self.assertEqual(r.status_code, 400, "Bad GET request with index and timestamp =true does not return 400")
+		self.assertEqual(r.status_code, 400, "Bad GET request with index and timestamp =true does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 	def test_get_bad_request_index_and_key(self):
 		r = requests.get(self.apiURI+"?key="+self.key+"&index=true")
-		self.assertEqual(r.status_code, 400, "Bad GET request with index=true and key set does not return 400")
+		self.assertEqual(r.status_code, 400, "Bad GET request with index=true and key set does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test_get_bad_request_timemap_and_not_key(self):
 		r = requests.get(self.apiURI+"?timemap=true")
-		self.assertEqual(r.status_code, 400, "Bad GET request with timemap=true and no key set does not return 400")
+		self.assertEqual(r.status_code, 400, "Bad GET request with timemap=true and no key set does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	# TODO raise 400 three times if (index and timemap) or (index and key) or (timemap and not key):
-            # raise HTTPError(reason="Invalid arguments.", status_code=400)
+
+
+	# delete unowned repo
+
+
+
 
 	# TODO Raise specific errors, if data is compromised
 
@@ -398,11 +491,6 @@ class Unauthorized(unittest.TestCase):
 
 # # Show Repo
 
-# # Push valid data and check for success
-
-# #
-
-# # push invalid data and check response
 
 
 

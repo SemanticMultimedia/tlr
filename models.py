@@ -41,7 +41,7 @@ class HMap(Base):
 class CSet(Base):
     repo = ForeignKeyField(Repo, related_name="csets", null=False)
     hkey = ForeignKeyField(HMap, null=False)
-    time = MSQLTimestampField(precision=0, null=False)
+    time = MSQLTimestampField(precision=2, null=False)
     type = MSQLTinyIntegerField(unsigned=True, null=False)
     len  = MSQLMediumIntegerField(unsigned=True, null=False)
     # base = MSQLTimestampField(precision=3, null=False)
@@ -58,7 +58,7 @@ class CSet(Base):
 class Blob(Base):
     repo = ForeignKeyField(Repo, related_name="blobs", null=False)
     hkey = ForeignKeyField(HMap, null=False)
-    time = MSQLTimestampField(precision=0, null=False)
+    time = MSQLTimestampField(precision=2, null=False)
     data = MSQLMediumBlobField()
 
     class Meta:
