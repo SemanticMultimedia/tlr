@@ -87,6 +87,48 @@ class BaseHandler(RequestHandler):
                 }
             }))
 
+class UserHandler(BaseHandler):
+    """Processes user-regarding requests, such as the index page for a user"""
+    def get(self, username):
+        try:
+            user = User.select().where(User.name == username).get()
+        except User.DoesNotExist:
+            raise HTTPError(reason="User not found.", status_code=404)
+        
+        repos = Repo.select().where(Repo.user == user)
+        reposit = repos.iterator()
+
+        # TODO: Paginate?
+
+        first = None
+        try:
+            first = reposit.next()
+        except StopIteration:
+            # No repos for user
+            # No need to raise an error, just return empty list in json
+            pass
+            
+
+        accept = self.request.headers.get("Accept", "")
+        user_url = (self.request.protocol + "://" + self.request.host)
+
+        if "application/json" in accept or "*/*" in accept:
+            self.set_header("Content-Type", "application/json")
+
+            self.write('{"username": ' + json_encode(username))
+            self.write(', "repositories": {"list":[')
+
+            m = ('{{"name": "{0}", "uri": "' + user_url +
+                 '/'+username+'/{0}"}}')
+
+            if first:
+                self.write(m.format(first.name))
+
+            for repo in reposit:
+                self.write(', ' + m.format(repo.name))
+
+            self.write(']}')
+            self.write('}')
 
 class RepoHandler(BaseHandler):
 
@@ -361,6 +403,7 @@ class RepoHandler(BaseHandler):
 
         if last.type == CSet.DELETE:
             # The resource was deleted already, return instantly.
+            # TODO does not work. the ui shows another cset in this case, although tests do not show an increment in csets
             self.finish()
 
         revision_logic.save_revision_delete(repo, key, ts)

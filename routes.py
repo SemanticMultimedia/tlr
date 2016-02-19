@@ -20,6 +20,7 @@ routes = [
     url(r"/settings/tokens/([0-9]+)/del", handlers.web.DelTokenHandler,
         name="web:del-token"),
     url(r"/([^/]+)", handlers.web.UserHandler, name="web:user"),
+    url(r"/api/([^/]+)", handlers.api.UserHandler, name="api:user"),
     url(r"/([^/]+)/([^/]+)", handlers.web.RepoHandler, name="web:repo"),
     url(r"/([^/]+)/([^/]+)/del", handlers.web.DelRepoHandler, name="web:del-repo"),
     url(r"/api/([^/]+)/([^/]+)", handlers.api.RepoHandler, name="api:repo"),

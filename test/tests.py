@@ -23,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-os.system(parentdir+"/unprepare.py")
-os.system(parentdir+"/prepare.py")
+# os.system(parentdir+"/unprepare.py")
+# os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -33,6 +33,8 @@ def seed():
 	token = Token.create(value="123456", user=user1, seen=True, desc="important description")
 	repo1 = Repo.create(user=user1, name="repo1", desc="important description")
 	repo2 = Repo.create(user=user2, name="repo2", desc="important description")
+
+# def seed_repo3():
 
 
 user1 = User()
@@ -105,6 +107,9 @@ class Authorized(unittest.TestCase):
 	header_xml = {'Authorization':"token "+tailrToken, 'Content-Type':"application/rdf+xml"}
 	apiURI = "http://localhost:5000/api/"+userName+"/"+repoName
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
+	userURI = "http://localhost:5000/api/"+userName
+	user2URI = "http://localhost:5000/api/user2"
+	user3URI = "http://localhost:5000/api/user3"
 	notExistingRepo = "http://localhost:5000/api/user1/XXX"
 
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
@@ -211,6 +216,20 @@ class Authorized(unittest.TestCase):
 		r = requests.get(self.apiURI, params=self.params_index)
 		# only one key in repo
 		self.assertEqual(len(r.text.splitlines()), 1, "wrong number of keys in repo (returned via GET index page of repo)")
+
+	def test041_get_user_index(self):
+		r = requests.get(self.userURI)
+		resjson = json.loads(r.text)
+		# 1 repo for user1
+		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
+		self.assertEqual(len(resjson[u'repositories'][u'list']), 1, "wrong number of repos for user1 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 1")
+
+	def test042_get_user2_index(self):
+		r = requests.get(self.user2URI)
+		resjson = json.loads(r.text)
+		# 1 repo for user1
+		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
+		self.assertEqual(len(resjson[u'repositories'][u'list']), 1, "wrong number of repos for user2 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 1")
 
 
 	def test050_get_repo_key_timemap(self):
@@ -417,6 +436,28 @@ class Authorized(unittest.TestCase):
 		params_datetime = {'key':self.key,'datetime':uploadDateString}
 		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
 		self.assertEqual(r.status_code, 400, "DELETE with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+
+	# def test170_add_repo(self):
+	# 	global user1
+	# 	repo3 = Repo.create(user=user1, name="repo3", desc="important description")
+	# 	self.assertEqual(len(resjson[u'repositories'][u'list']), 2, "wrong number of repos for user1 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 1")
+
+	def test180_get_index_for_non_existing_user(self):
+		r = requests.get(self.user3URI)
+		self.assertEqual(r.status_code, 404, "GET index of non existing user does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test181_get_user3_index(self):
+		user3 = User.create(name="user3", confirmed=True, github_id="5678", email="user3@example.com")
+		r = requests.get(self.user3URI)
+		resjson = json.loads(r.text)
+		# 0 repos for user1
+		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
+		self.assertEqual(len(resjson[u'repositories'][u'list']), 0, "wrong number of repos for user3 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 0")
+
+	# TODO get timemap without format
+
+	# test other return formats 
 
 
 	# TODO send delete requests and check responses
