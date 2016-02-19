@@ -37,7 +37,9 @@ def date(s, fmt):
     return datetime.datetime.strptime(s, fmt)
 
 def now():
-    return datetime.datetime.utcnow()
+    # replace microseconds, because otherwise this fraction will cause 
+    # inconsitencies when comparing to datetimes that are exact to the second only
+    return datetime.datetime.utcnow().replace(microsecond=0)
 
 # TODO: Tune zlib compression parameters `level`, `wbits`, `bufsize`?
 

@@ -23,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-os.system(parentdir+"/unprepare.py")
-os.system(parentdir+"/prepare.py")
+# os.system(parentdir+"/unprepare.py")
+# os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -44,14 +44,25 @@ token = Token()
 seed()
 
 
+
+#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
+# unittest module does sort the tests with cmp()
+# therefore tests are orderer by naming them test000
+# third digit is there to slot tests in
+#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
+#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
+# at sometimes calling time.sleep() is unavoidable
+# precision of the timestamps in the db are seconds
+# if you try to create two or more CSets within one second, primary keys will be the same
+# this
+#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
+
+
+
+
 # Fixture for Athorized pushing 
 class Authorized(unittest.TestCase):
 
-	#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
-	# unittest module does sort the tests with cmp()
-	# therefore tests are orderer by naming them test000
-	# third digit is there to slot tests in
-	#######	#######	#######	#######	#######	#######	#######	#######	#######	#######
 
 	def setUp(self):
 		pass
@@ -151,6 +162,16 @@ class Authorized(unittest.TestCase):
 	def test013_blob_entry_exists(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on empty repo did not create a blob")
 
+	def test014_put_with_same_timestamp(self):
+		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 400, "putting with exact same timestamp does not return httpcode 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test015_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1, "pushing on same timestamp did create a changeset")
+
+	def test016_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on same timestamp did create a blob")
+
 
 
 	def test020_put_on_existing(self):
@@ -160,7 +181,7 @@ class Authorized(unittest.TestCase):
 
 	def test021_timestamp_equals_current_time(self):
 		cset= self.getLastCSetForRepo(self.repo)
-		# python creates pythonic timedelta object
+		# python creates pythonic datetime.timedelta object
 		# test for 2 seconds, although most times only miliseconds pass until here
 		timeDiff = (datetime.datetime.now() - cset.time)
 		lessThan2SecondsPassed = timeDiff.total_seconds() < 2
@@ -325,7 +346,7 @@ class Authorized(unittest.TestCase):
 
 	def test124_get_repo_index(self):
 		r = requests.get(self.apiURI, params=self.params_index)
-		# two keys in repo
+		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
 
@@ -344,14 +365,14 @@ class Authorized(unittest.TestCase):
 
 	def test134_get_repo_index(self):
 		r = requests.get(self.apiURI, params=self.params_index)
-		# two keys in repo
+		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
 
 
 
 	def test140_delete_existing(self):
 		# delete without timestamp (to current time)
-		# time.sleep(2)
+		time.sleep(1)
 		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
 		self.assertEqual(r.status_code, 200, "deleting a key does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
@@ -369,22 +390,26 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(len(resjson[u'mementos'][u'list']), 3, "wrong number of mementos in repo,key (returned via GET timemap page of key) after delete")
 
 	def test144_get_repo_key_memento_after_delete(self):
-		# if get query timestamp is before first revision there is no resource
 		r = requests.get(self.apiURI, params=self.params_key)
-		self.assertEqual(r.status_code, 404, "GET memento with after deletion does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+		self.assertEqual(r.status_code, 404, "GET memento after delete does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 
 	def test150_delete_existing_after_delete(self):
 		# delete without timestamp (to current time)
-		# wait for a second, because same timestamp will cause integrity error
-		# time.sleep(1)
+		time.sleep(1)
 		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
 		self.assertEqual(r.status_code, 200, "deleting a key after a delete does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
+	def test151_number_of_csets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),7, "deleting a key after a delete did create a changeset")
+
+	def test152_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "deleting a key after a delete did create a blob")
 
 
-	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
+
+	# Will get obsolete in the future, when this is implemented
 	def test160_delete_with_older_timestamp(self):
 		# 400 Bad Request
 		uploadDateString = "2012-07-12-00:00:00"
