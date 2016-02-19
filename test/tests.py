@@ -23,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-# os.system(parentdir+"/unprepare.py")
-# os.system(parentdir+"/prepare.py")
+os.system(parentdir+"/unprepare.py")
+os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -244,7 +244,8 @@ class Authorized(unittest.TestCase):
 
 	def test070_put_exact_same_data(self):
 		# this is a perfect legitimate request, should return 200
-		# crucial point is, what happens in the database --> see next tests
+		# sleep to avoid pushing within the same second
+		time.sleep(1)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
 		self.assertEqual(r.status_code, 200, "putting same payload on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
