@@ -130,73 +130,16 @@ class UserHandler(BaseHandler):
             self.write(']}')
             self.write('}')
 
+        # TODO other return formats
+
 class RepoHandler(BaseHandler):
-
-    # def setHeader(self, key, timemap):
-    #
-    #     if key and not timemap:
-    #         self.set_header("Content-Type", "application/n-quads")
-    #         self.set_header("Vary", "accept-datetime")
-    #
-    #         sha = revision_logic.get_shasum(key)
-    #         chain = revision_logic.get_chain(repo, sha, ts)
-    #
-    #         if chain == None:
-    #             raise HTTPError(404)
-    #
-    #         timegate_url = (self.request.protocol + "://" +
-    #                         self.request.host + self.request.path)
-    #         timemap_url = (self.request.protocol + "://" +
-    #                         self.request.host + self.request.uri + "&timemap=true")
-    #
-    #         #TODO: set link for "first memento", "last memento"
-    #         self.set_header("Link",
-    #                         '<%s>; rel="original"'
-    #                         ', <%s>; rel="timegate"'
-    #                         ', <%s>; rel="timemap"'
-    #                         % (key, timegate_url, timemap_url))
-    #
-    #         self.set_header("Memento-Datetime",
-    #                         chain[-1].time.strftime(RFC1123DATEFMT))
-    #     elif key and timemap:
-    #         self.set_header("Content-Type", "application/json")
-
-
-    # """Processes repository calls: Push, timegate, memento, timemap etc."""
-    # def head(self, username, reponame):
-    #     self.check_args()
-    #
-    #     timemap = self.get_query_argument("timemap", "false") == "true"
-    #     index = self.get_query_argument("index", "false") == "true"
-    #     key = self.get_query_argument("key", None)
-    #
-    #     if (index and timemap) or (index and key) or (timemap and not key):
-    #         raise HTTPError(400)
-    #
-    #     if self.get_query_argument("datetime", None):
-    #         datestr = self.get_query_argument("datetime")
-    #         ts = date(datestr, QSDATEFMT)
-    #     elif "Accept-Datetime" in self.request.headers:
-    #         datestr = self.request.headers.get("Accept-Datetime")
-    #         ts = date(datestr, RFC1123DATEFMT)
-    #     else:
-    #         ts = now()
-    #
-    #     #load repo
-    #     repo = revision_logic.load_repo(username, reponame)
-    #     if repo == None:
-    #         raise HTTPError(404)
-    #
-    #     self.setHeader()
-    #
-    #     self.finish()
-
 
     """Processes repository calls: Push, timegate, memento, timemap etc."""
     def get(self, username, reponame):
         timemap = self.get_query_argument("timemap", "false") == "true"
         index = self.get_query_argument("index", "false") == "true"
         key = self.get_query_argument("key", None)
+        delta = self.get_query_argument("delta", "false") == "true"
 
         if (index and timemap) or (index and key) or (timemap and not key):
             raise HTTPError(reason="Invalid arguments.", status_code=400)
@@ -215,10 +158,12 @@ class RepoHandler(BaseHandler):
         if repo == None:
             raise HTTPError(reason="Repo not found.", status_code=404)
 
-        if key and not timemap:
+        if key and not timemap and not delta:
             self.__get_revision(repo, key, ts)
         elif key and timemap:
             self.__get_timemap(repo, key)
+        elif key and delta:
+            self.__get_delta(repo,key,ts)
         elif index:
             self.__get_index(repo, ts)
         else:
@@ -259,6 +204,17 @@ class RepoHandler(BaseHandler):
         stmts = revision_logic.get_revision(repo, key, chain)
 
         self.write(join(stmts, "\n"))
+
+
+    def __get_delta(self, repo, key, ts):
+        added, deleted = revision_logic.get_delta_of_cset(repo, key, ts)
+
+        self.set_header("Vary", "accept-datetime")
+        self.set_header("Content-Type", "text/plain")
+        self.write(join(added, "\n"))
+        self.write("\n")
+        self.write(join(deleted, "\n"))
+
 
     def __get_timemap(self, repo, key):
         # Generate a timemap containing historic change information
@@ -333,6 +289,66 @@ class RepoHandler(BaseHandler):
 
         for h in hm:
             self.write(h.val + "\n")
+
+
+        # def setHeader(self, key, timemap):
+    #
+    #     if key and not timemap:
+    #         self.set_header("Content-Type", "application/n-quads")
+    #         self.set_header("Vary", "accept-datetime")
+    #
+    #         sha = revision_logic.get_shasum(key)
+    #         chain = revision_logic.get_chain(repo, sha, ts)
+    #
+    #         if chain == None:
+    #             raise HTTPError(404)
+    #
+    #         timegate_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.path)
+    #         timemap_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.uri + "&timemap=true")
+    #
+    #         #TODO: set link for "first memento", "last memento"
+    #         self.set_header("Link",
+    #                         '<%s>; rel="original"'
+    #                         ', <%s>; rel="timegate"'
+    #                         ', <%s>; rel="timemap"'
+    #                         % (key, timegate_url, timemap_url))
+    #
+    #         self.set_header("Memento-Datetime",
+    #                         chain[-1].time.strftime(RFC1123DATEFMT))
+    #     elif key and timemap:
+    #         self.set_header("Content-Type", "application/json")
+
+
+    # """Processes repository calls: Push, timegate, memento, timemap etc."""
+    # def head(self, username, reponame):
+    #     self.check_args()
+    #
+    #     timemap = self.get_query_argument("timemap", "false") == "true"
+    #     index = self.get_query_argument("index", "false") == "true"
+    #     key = self.get_query_argument("key", None)
+    #
+    #     if (index and timemap) or (index and key) or (timemap and not key):
+    #         raise HTTPError(400)
+    #
+    #     if self.get_query_argument("datetime", None):
+    #         datestr = self.get_query_argument("datetime")
+    #         ts = date(datestr, QSDATEFMT)
+    #     elif "Accept-Datetime" in self.request.headers:
+    #         datestr = self.request.headers.get("Accept-Datetime")
+    #         ts = date(datestr, RFC1123DATEFMT)
+    #     else:
+    #         ts = now()
+    #
+    #     #load repo
+    #     repo = revision_logic.load_repo(username, reponame)
+    #     if repo == None:
+    #         raise HTTPError(404)
+    #
+    #     self.setHeader()
+    #
+    #     self.finish()
 
     @authenticated
     def put(self, username, reponame):

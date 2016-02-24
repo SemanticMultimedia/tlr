@@ -5,9 +5,10 @@ import string
 from models import User, Token, Repo, HMap, CSet, Blob
 from peewee import IntegrityError, SQL, fn
 import RDF
+import datetime
 
-# import logging
-# logger = logging.getLogger('debug')
+import logging
+logger = logging.getLogger('debug')
 
 # This factor (among others) determines whether a snapshot is stored rather
 # than a delta, depending on the size of the latest snapshot and subsequent
@@ -139,6 +140,9 @@ def __get_chain_last_cset(repo, sha):
     except CSet.DoesNotExist:
         return None
     return last
+
+def __get_blob_list(repo, sha, chain):
+    return list(__get_blobs(repo, sha, chain))
 
 def __get_blobs(repo, sha, chain):
     #logger.info(":: get_blobs")
@@ -311,6 +315,64 @@ def __save_revision(repo, sha, chain, stmts, ts):
         CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELTA,
             len=len(patch))
     return 0
+
+def get_delta_of_cset(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_delta_of_cset(repo, sha, ts)
+
+def __get_delta_of_cset(repo, sha, ts):
+    
+    chain = __get_chain_at_ts(repo, sha, ts)
+
+    cset = None
+
+    added = set()
+    deleted = set()
+
+    if len(chain) > 0:
+        cset = chain[-1]
+        logger.info(cset)
+        logger.info(cset.type)
+        logger.info(cset.time)
+        logger.info(len(chain))
+
+
+    if cset: 
+        if cset.type == CSet.DELETE:
+            # everything was deleted and is a delta here
+            prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
+            if len(prev_chain) > 0:
+                prev_data = __get_revision(repo, sha, prev_chain)
+                deleted = map(lambda s: "D " + s, prev_data)
+
+        elif cset.type == CSet.DELTA:
+            # If Memento is a delta, we just need to deliver the delta itself
+            data = decompress(__get_blob_list(repo, sha, chain)[-1].data)
+
+            for line in data.splitlines():
+                mode, stmt = line[0], line[2:]
+                if mode == "A":
+                    added.add(line)
+                else:
+                    deleted.add(line)
+
+        else:
+            # CSet is Snapshot => Calculate Delta from snapshot to last delta
+
+            current_data = __get_revision(repo, sha, chain)
+            # get the chain before the snashot, therefore decrease timestamp of current memento
+            prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
+            if len(prev_chain) > 0:
+                prev_data = __get_revision(repo, sha, prev_chain)
+                added = map(lambda s: "A " + s, current_data - prev_data)
+                deleted = map(lambda s: "D " + s, prev_data - current_data)
+            else:
+                # No Memento before this snapshot, everything was added
+                added = map(lambda s: "A " + s, current_data)
+
+    return added, deleted
+
+
 
 def save_revision_delete(repo, key, ts):
     sha = __get_shasum(key)

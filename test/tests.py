@@ -56,7 +56,6 @@ seed()
 # at sometimes calling time.sleep() is unavoidable
 # precision of the timestamps in the db are seconds
 # if you try to create two or more CSets within one second, primary keys will be the same
-# this
 #######	#######	#######	#######	#######	#######	#######	#######	#######	#######
 
 
@@ -202,7 +201,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing on existing repo did not create a blob")
 
 
-	# Wird sich in Zukunft eruebrigen, wenn das als feature implementiert ist
+	# Will be a feature in the future, this will be obsolete then
 	def test030_put_with_older_timestamp(self):
 		# 400 Bad Request
 		uploadDateString = "2012-07-12-00:00:00"
@@ -227,7 +226,7 @@ class Authorized(unittest.TestCase):
 	def test042_get_user2_index(self):
 		r = requests.get(self.user2URI)
 		resjson = json.loads(r.text)
-		# 1 repo for user1
+		# 1 repo for user2
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
 		self.assertEqual(len(resjson[u'repositories'][u'list']), 1, "wrong number of repos for user2 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 1")
 
@@ -298,20 +297,20 @@ class Authorized(unittest.TestCase):
 
 	def test085_put_compromised_data4(self):
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload_compromised_wrong_uri)
-		self.assertEqual(r.status_code, 500, "PUT compromised data (missing object in n-triple) does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+		self.assertEqual(r.status_code, 500, "PUT compromised data (compromised uri) does not respond with 500\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test086_number_of_csets_not_changed(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing object in n-triple) to repo did create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),2, "pushing compromised data (missing object, compromised uri, compromised blank node) to repo did create a changeset")
 
 	def test087_number_of_blobs_not_changed(self):
-		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing object in n-triple) to repo did create a blob")
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing compromised data (missing object, compromised uri, compromised blank node) to repo did create a blob")
 
 
 
 
 	def test100_put_ttl(self):
 		r = requests.put(self.apiURI, params=self.params_ttl_datetime, headers=self.header_ttl, data=open(self.ttlFile2, 'rb'))
-		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo with new key does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test101_hmap_entry_added(self):
 		self.assertEqual(self.numberOfHMaps(),2, "pushing ttl with new key on repo did not create a hmap entry")
@@ -427,6 +426,9 @@ class Authorized(unittest.TestCase):
 	def test152_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "deleting a key after a delete did create a blob")
 
+	def test153_get_deleted_repo(self):
+		r = requests.get(self.apiURI, params=self.params_key)
+		self.assertEqual(r.status_code, 404, "GET a deleted key does not return httpcode 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 	# Will get obsolete in the future, when this is implemented
@@ -455,20 +457,11 @@ class Authorized(unittest.TestCase):
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
 		self.assertEqual(len(resjson[u'repositories'][u'list']), 0, "wrong number of repos for user3 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 0")
 
-	# TODO get timemap without format
 
-	# test other return formats 
-
-
-	# TODO send delete requests and check responses
-
-
-	# TODO check for specific csets and hmaps not only for count of whole repo 
-
-	# TODO def test_delete_():
-	# TODO get after delete and expect deleted resource
+	# TODO test other return formats 
 
 	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
+
 
 
 
@@ -520,15 +513,6 @@ class Authorized(unittest.TestCase):
 
 
 
-	# delete unowned repo
-
-
-
-
-	# TODO Raise specific errors, if data is compromised
-
-	# TODO raise integrity error somehow
-
 
 class Unauthorized(unittest.TestCase):
 	def setUp(self):
@@ -549,26 +533,6 @@ class Unauthorized(unittest.TestCase):
 		# 401 unauthorized
 		r = requests.put(self.apiURI, params=self.params, headers=self.header, data=self.payload)
 		self.assertEqual(r.status_code, 401, "PUT with wrong token does not return 401")
-
-
-
-
-
-
-# # Create Account with credentials
-# # class Create
-
-
-# # Login and check for success
-
-# # Sign in with Github account
-
-# # Create repo
-
-# # Show Repo
-
-
-
 
 
 
