@@ -203,6 +203,21 @@ def get_csets(repo, key):
 
     return csets
 
+def get_cset_at_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_cset_at_ts(repo, sha, ts)
+
+def __get_cset_at_ts(repo, sha, ts):
+    try:
+        cset = (CSet
+                .select(CSet.time, CSet.type)
+                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time == ts))
+                .naive())
+    except CSet.DoesNotExist:
+        return None
+
+    return cset
+
 def get_cset_next_after_ts(repo, key, ts):
     sha = __get_shasum(key)
     return __get_cset_next_after_ts(repo, sha, ts)
@@ -316,49 +331,35 @@ def __save_revision(repo, sha, chain, stmts, ts):
             len=len(patch))
     return 0
 
-def get_delta_of_cset(repo, key, ts):
+def get_delta_of_memento(repo, key, ts):
     sha = __get_shasum(key)
-    return __get_delta_of_cset(repo, sha, ts)
+    return __get_delta_of_memento(repo, sha, ts)
 
-def __get_delta_of_cset(repo, sha, ts):
-    
-    chain = __get_chain_at_ts(repo, sha, ts)
-
-    cset = None
-
+def __get_delta_of_memento(repo, sha, ts):
     added = set()
     deleted = set()
 
+    chain = __get_chain_at_ts(repo, sha, ts)
+
     if len(chain) > 0:
         cset = chain[-1]
-        logger.info(cset)
-        logger.info(cset.type)
-        logger.info(cset.time)
-        logger.info(len(chain))
-
-
-    if cset: 
         if cset.type == CSet.DELETE:
             # everything was deleted and is a delta here
+            # get the chain before the delete, therefore decrease timestamp of current memento
             prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
             if len(prev_chain) > 0:
                 prev_data = __get_revision(repo, sha, prev_chain)
                 deleted = map(lambda s: "D " + s, prev_data)
-
         elif cset.type == CSet.DELTA:
             # If Memento is a delta, we just need to deliver the delta itself
             data = decompress(__get_blob_list(repo, sha, chain)[-1].data)
-
             for line in data.splitlines():
-                mode, stmt = line[0], line[2:]
-                if mode == "A":
+                if line[0] == "A":
                     added.add(line)
                 else:
                     deleted.add(line)
-
         else:
             # CSet is Snapshot => Calculate Delta from snapshot to last delta
-
             current_data = __get_revision(repo, sha, chain)
             # get the chain before the snashot, therefore decrease timestamp of current memento
             prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
@@ -372,6 +373,26 @@ def __get_delta_of_cset(repo, sha, ts):
 
     return added, deleted
 
+def get_delta_between_mementos(repo, key, ts, delta_ts):
+    sha = __get_shasum(key)
+    return __get_delta_between_mementos(repo, sha, ts, delta_ts)
+
+def __get_delta_between_mementos(repo, sha, ts, delta_ts):
+    added = set()
+    deleted = set()
+
+    chain = __get_chain_at_ts(repo, sha, ts)
+    prev_chain = __get_chain_at_ts(repo, sha, delta_ts)
+
+    if len(chain) > 0 and len(prev_chain) > 0:
+        data = __get_revision(repo, sha, chain)
+        prev_data = __get_revision(repo, sha, prev_chain)
+        added = map(lambda s: "A " + s, data - prev_data)
+        deleted = map(lambda s: "D " + s, prev_data - data)
+    else:
+        # In any other case at least at one time there is no resource. 
+        raise ValueError
+    return added, deleted
 
 
 def save_revision_delete(repo, key, ts):
@@ -440,7 +461,7 @@ def __remove_revision(repo, sha, ts):
     # keep next revision statements
     stmts_ats = set()
     cset_ats = __get_cset_next_after_ts(repo, sha, ts)
-    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+    if (cset_ats != None and list(cset_ats)[-1].type == CSet.DELTA):
         # not last cset
         chain_ats = __get_chain_at_ts(repo, sha, cset_ats.time)
         stmts_ats = __get_revision(repo, sha, chain_ats)
@@ -449,7 +470,7 @@ def __remove_revision(repo, sha, ts):
     __remove_cset(repo, sha, ts)
 
     # if not last cset, re-compute next cset
-    if (cset_ats != None and cset_ats.type == CSet.DELTA):
+    if (cset_ats != None and list(cset_ats)[-1].type == CSet.DELTA):
         __remove_cset(repo, sha, cset_ats.time)
         chain = __get_chain_at_ts(repo, sha, cset_ats.time)
         __save_revision(repo, sha, chain, stmts_ats, cset_ats.time)

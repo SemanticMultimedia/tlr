@@ -140,13 +140,25 @@ class RepoHandler(BaseHandler):
         index = self.get_query_argument("index", "false") == "true"
         key = self.get_query_argument("key", None)
         delta = self.get_query_argument("delta", "false") == "true"
+        # if delta is not True but there is a delta param, check if it is a valid ts. 
+        if self.get_query_argument("delta", False) and not delta:
+            datestr = self.get_query_argument("delta")
+            try:
+                delta_ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of delta timestamp", status_code=400)
+        else:
+            delta_ts = None
 
         if (index and timemap) or (index and key) or (timemap and not key):
             raise HTTPError(reason="Invalid arguments.", status_code=400)
 
         if self.get_query_argument("datetime", None):
             datestr = self.get_query_argument("datetime")
-            ts = date(datestr, QSDATEFMT)
+            try:
+                ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
             ts = date(datestr, RFC1123DATEFMT)
@@ -158,12 +170,14 @@ class RepoHandler(BaseHandler):
         if repo == None:
             raise HTTPError(reason="Repo not found.", status_code=404)
 
-        if key and not timemap and not delta:
+        if key and not timemap and not delta and not delta_ts:
             self.__get_revision(repo, key, ts)
         elif key and timemap:
             self.__get_timemap(repo, key)
         elif key and delta:
-            self.__get_delta(repo,key,ts)
+            self.__get_delta_of_memento(repo, key, ts)
+        elif key and delta_ts:
+            self.__get_delta_between_mementos(repo, key, ts, delta_ts)
         elif index:
             self.__get_index(repo, ts)
         else:
@@ -206,8 +220,8 @@ class RepoHandler(BaseHandler):
         self.write(join(stmts, "\n"))
 
 
-    def __get_delta(self, repo, key, ts):
-        added, deleted = revision_logic.get_delta_of_cset(repo, key, ts)
+    def __get_delta_of_memento(self, repo, key, ts):
+        added, deleted = revision_logic.get_delta_of_memento(repo, key, ts)
 
         self.set_header("Vary", "accept-datetime")
         self.set_header("Content-Type", "text/plain")
@@ -215,6 +229,21 @@ class RepoHandler(BaseHandler):
         self.write("\n")
         self.write(join(deleted, "\n"))
 
+
+    def __get_delta_between_mementos(self, repo, key, ts, delta_ts):
+        try:
+            if ts > delta_ts:
+                added, deleted = revision_logic.get_delta_between_mementos(repo, key, ts, delta_ts)
+            else:
+                added, deleted = revision_logic.get_delta_between_mementos(repo, key, delta_ts, ts)
+        except ValueError:
+            raise HTTPError(reason="No delta possible for given timestamps", status_code=400)
+
+        self.set_header("Vary", "accept-datetime")
+        self.set_header("Content-Type", "text/plain")
+        self.write(join(added, "\n"))
+        self.write("\n")
+        self.write(join(deleted, "\n"))
 
     def __get_timemap(self, repo, key):
         # Generate a timemap containing historic change information
@@ -393,6 +422,7 @@ class RepoHandler(BaseHandler):
         # a delete, else insert a `CSet.DELETE` entry without any blob data.
 
         key = self.get_query_argument("key")
+        update = self.get_query_argument("update", "false") == "true"
 
         if username != self.current_user.name:
             raise HTTPError(403)
@@ -415,7 +445,11 @@ class RepoHandler(BaseHandler):
 
         if not ts > last.time:
             # Appended timestamps must be monotonically increasing!
-            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+            # Except update-param is set und the ts is the exact one of an existing cset
+            if revision_logic.get_cset_at_ts(repo, key, ts) and update:
+                revision_logic.remove_revision(repo, key, ts)
+            else:
+                raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
 
         if last.type == CSet.DELETE:
             # The resource was deleted already, return instantly.

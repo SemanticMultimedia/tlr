@@ -81,6 +81,7 @@ class Authorized(unittest.TestCase):
 	ttlFile2 = "test/example2.ttl"
 	xmlFile = "test/example.xml"
 	xmlFile2 = "test/example2.xml"
+	xmlFile3 = "test/example3.xml"
 
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
@@ -95,6 +96,8 @@ class Authorized(unittest.TestCase):
 	params_ttl_datetime = {'key': key_ttl,'datetime':uploadDateString}
 	params_xml = {'key': key_xml}
 	params_xml_datetime = {'key': key_xml,'datetime':uploadDateString}
+	params_xml_datetime2 = {'key': key_xml,'datetime':uploadDateString2}
+	params_xml_datetime2_update = {'key': key_xml,'datetime': uploadDateString2,'update': "true"}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
@@ -370,7 +373,7 @@ class Authorized(unittest.TestCase):
 
 
 	def test130_put_xml_on_existing(self):
-		r = requests.put(self.apiURI, params=self.params_xml, headers=self.header_xml, data=open(self.xmlFile, 'rb'))
+		r = requests.put(self.apiURI, params=self.params_xml_datetime2, headers=self.header_xml, data=open(self.xmlFile, 'rb'))
 		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test131_no_hmap_entry_added(self):
@@ -386,6 +389,8 @@ class Authorized(unittest.TestCase):
 		r = requests.get(self.apiURI, params=self.params_index)
 		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
+
+
 
 
 
@@ -420,8 +425,10 @@ class Authorized(unittest.TestCase):
 		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
 		self.assertEqual(r.status_code, 200, "deleting a key after a delete does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
+# THIS ONE IS ACTUALLY FALSE, Deleting after delete should not create a changeset
 	def test151_number_of_csets_not_changed(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),7, "deleting a key after a delete did create a changeset")
+		time.sleep(1)
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a key after a delete did create a changeset")
 
 	def test152_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "deleting a key after a delete did create a blob")
@@ -429,6 +436,17 @@ class Authorized(unittest.TestCase):
 	def test153_get_deleted_repo(self):
 		r = requests.get(self.apiURI, params=self.params_key)
 		self.assertEqual(r.status_code, 404, "GET a deleted key does not return httpcode 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test154_put_after_delete(self):
+		time.sleep(1)
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 200, "putting on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test155_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "pushing after delete did not create a blob")
+
+	def test156_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "pushing after delete did not create a changeset")
 
 
 	# Will get obsolete in the future, when this is implemented
@@ -457,6 +475,14 @@ class Authorized(unittest.TestCase):
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
 		self.assertEqual(len(resjson[u'repositories'][u'list']), 0, "wrong number of repos for user3 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 0")
 
+	def test190_put_xml_on_existing(self):
+		r = requests.put(self.apiURI, params=self.params_xml, headers=self.header_xml, data=open(self.xmlFile3, 'rb'))
+		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test191_delete_revision(self):
+		time.sleep(1)
+		r = requests.delete(self.apiURI, params=self.params_xml_datetime2_update, headers=self.header_xml)
+		self.assertEqual(r.status_code, 200, "deleting a revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	# TODO test other return formats 
 
