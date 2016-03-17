@@ -85,6 +85,7 @@ class Authorized(unittest.TestCase):
 
 	keyWithFragment = "http://rdf.data-vocabulary.org/#fragment"
 
+	uploadDateString0 = "2011-07-12-00:00:00"
 	uploadDateString = "2013-07-12-00:00:00"
 	uploadDateString2 = "2013-07-13-00:00:00"
 	uploadDateString3 = "2013-07-11-00:00:00"
@@ -103,6 +104,9 @@ class Authorized(unittest.TestCase):
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
+	params_datetime4_insert = {'key':key,'datetime':uploadDateString4, 'force': "true"}
+	params_datetime0_insert = {'key':key,'datetime':uploadDateString0, 'force': "true"}
+	params_insert = {'key':key, 'force': "true"}
 	empty_params = {}
 
 	contentType_ntriples = "application/n-triples"
@@ -118,6 +122,7 @@ class Authorized(unittest.TestCase):
 
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	payload3 = "<http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://PROPLAYERXYZ.bnf.fr/vocabulary/roles/r70> <http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
 	payload_compromised_wrong_blankNode = ":ab123 <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."
 	payload_compromised_missing_object = "_:ab123 <http://data.bnf.fr/vocabulary/roles/r70> . "
@@ -516,6 +521,38 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a revision did not delete a changeset")
 
 
+	def test220_put_insert_revision(self):
+		r = requests.put(self.apiURI, params=self.params_datetime4_insert, headers=self.header, data=self.payload3)
+		self.assertEqual(r.status_code, 200, "inserting on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test221_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "inserting on an existing repo did not create a blob")
+
+	def test222_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "inserting on an existing repo did not create a changeset")
+			
+
+	def test230_put_insert_revision_before(self):
+		r = requests.put(self.apiURI, params=self.params_datetime0_insert, headers=self.header, data=self.payload3)
+		self.assertEqual(r.status_code, 200, "inserting on an existing repo before initial revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test231_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),9, "inserting on an existing repo before initial revision did not create a blob")
+
+	def test232_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),10, "inserting on an existing repo before initial revision did not create a changeset")
+
+
+	def test240_put_insert_revision_after(self):
+		time.sleep(1)
+		r = requests.put(self.apiURI, params=self.params_insert, headers=self.header, data=self.payload3)
+		self.assertEqual(r.status_code, 200, "inserting on an existing repo after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test241_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "inserting on an existing repo after last revision did not create a blob")
+
+	def test242_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),11, "inserting on an existing repo after last revision did not create a changeset")
 
 	# TODO test for more facts about deleting a revision
 	# update-delete without ts shall not create a del-cset

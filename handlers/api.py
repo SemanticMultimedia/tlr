@@ -384,6 +384,7 @@ class RepoHandler(BaseHandler):
         # Create a new revision of the resource specified by `key`.
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
+        force = self.get_query_argument("force", None)
 
         if username != self.current_user.name:
             raise HTTPError(403)
@@ -397,7 +398,6 @@ class RepoHandler(BaseHandler):
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        chain = revision_logic.get_chain_tail(repo, key)
 
         # Parse and normalize into a set of N-Quad lines
         try:
@@ -406,12 +406,15 @@ class RepoHandler(BaseHandler):
             # TODO decide about error code. This is actual a client side error (4XX), but also not a bad request as such
             raise HTTPError(reason="Error while parsing payload: " + e.value, status_code=500)
 
-        try:
-            prev_state = revision_logic.save_revision(repo, key, chain, stmts, ts)
-        except ValueError:
-            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
-        except IntegrityError:
-            raise HTTPError(500)
+        if not force:
+            try:
+                prev_state = revision_logic.save_revision(repo, key, stmts, ts)
+            except ValueError:
+                raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+            except IntegrityError:
+                raise HTTPError(500)
+        else:
+            prev_state = revision_logic.insert_revision(repo, key, stmts, ts)
 
         if prev_state == None:
             self.finish()

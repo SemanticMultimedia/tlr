@@ -260,14 +260,11 @@ def get_repo_index(repo, ts, page):
 
     return hm.iterator()    
 
-def save_revision(repo, key, chain, stmts, ts):
+def save_revision(repo, key, stmts, ts):
     sha = __get_shasum(key)
+    chain = get_chain_tail(repo, key)
 
-    # TODO: Allow adding revisions with datetime prior to latest #2
-    if chain and len(chain) > 0 and not ts > chain[-1].time:
-        # Appended timestamps must be monotonically increasing!
-        raise ValueError
-
+    # TODO transfer this to dedicated function. This is not in the right place here
     if chain == None or len(chain) == 0:
         # Mapping for `key` likely does not exist:
         # Store the SHA-to-KEY mapping in HMap,
@@ -285,7 +282,8 @@ def save_revision(repo, key, chain, stmts, ts):
     return __save_revision(repo, sha, chain, stmts, ts)
 
 def __save_revision(repo, sha, chain, stmts, ts):
-    # TODO: Allow adding revisions with datetime prior to latest #2
+    # this checks if timestamp is after the last cset of the chain, not if its after all csets for key.
+    # this allows pushing to any timestamp, if the chain is right
     if chain and len(chain) > 0 and not ts > chain[-1].time:
         # Appended timestamps must be monotonically increasing!
         raise ValueError
@@ -328,6 +326,43 @@ def __save_revision(repo, sha, chain, stmts, ts):
         CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELTA,
             len=len(patch))
     return 0
+
+def save_revision_delete(repo, key, ts):
+    sha = __get_shasum(key)
+
+    # Insert the new "delete" change.
+    CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
+
+
+def insert_revision(repo, key, stmts, ts):
+    sha = __get_shasum(key)
+    return __insert_revision(repo, sha, stmts, ts)
+
+def __insert_revision(repo, sha, stmts, ts):
+    # keep next revision statements
+    stmts_next = set()
+    cset_next = __get_cset_next_after_ts(repo, sha, ts)
+
+    chain_current = __get_chain_at_ts(repo, sha, ts)
+    if cset_next != None:
+        if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
+            chain_next = __get_chain_at_ts(repo, sha, cset_next.time)
+            stmts_next = __get_revision(repo, sha, chain_next)
+            # If next cset is Delete, no need to reconstruct 
+
+        # save inserted revision
+        __save_revision(repo, sha, chain_current, stmts, ts)
+
+        if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
+            # delete next revision
+            __remove_cset(repo, sha, cset_next.time)
+            # reconstruct next revision
+            chain = __get_chain_at_ts(repo, sha, cset_next.time)
+            __save_revision(repo, sha, chain, stmts_next, cset_next.time)
+    else:
+        # If there is no cset following, just save the new statements
+        __save_revision(repo, sha, chain_current, stmts, ts)
+
 
 def get_delta_of_memento(repo, key, ts):
     sha = __get_shasum(key)
@@ -393,11 +428,6 @@ def __get_delta_between_mementos(repo, sha, ts, delta_ts):
     return added, deleted
 
 
-def save_revision_delete(repo, key, ts):
-    sha = __get_shasum(key)
-
-    # Insert the new "delete" change.
-    CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
 
 #### Repository management ####
 
