@@ -209,10 +209,7 @@ def get_cset_at_ts(repo, key, ts):
 
 def __get_cset_at_ts(repo, sha, ts):
     try:
-        cset = (CSet
-                .select(CSet.time, CSet.type)
-                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time == ts))
-                .naive())
+        cset = CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
     except CSet.DoesNotExist:
         return None
 
@@ -229,7 +226,8 @@ def __get_cset_next_after_ts(repo, sha, ts):
                 .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time > ts))
                 .order_by(CSet.time)
                 .limit(1)
-                .naive())
+                .naive()
+                .first())
     except CSet.DoesNotExist:
         return None
 
@@ -438,6 +436,13 @@ def __remove_csets(repo, sha):
     q_csets.execute()
 
 def __remove_cset(repo, sha, ts):
+    # remove cset
+    try:
+        cset = CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
+        count = cset.delete_instance()
+    except CSet.DoesNotExist:
+        return None
+    
     # remove blob
     try:
         blob = Blob.get(Blob.repo == repo, Blob.hkey == sha, Blob.time == ts)
@@ -445,12 +450,6 @@ def __remove_cset(repo, sha, ts):
     except Blob.DoesNotExist:
         return None
 
-    # remove cset
-    try:
-        cset = CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
-        cset.delete_instance()
-    except CSet.DoesNotExist:
-        return None
 
 def remove_revision(repo, key, ts):
     # (repo, hkey, time) is composite key for cset
@@ -459,22 +458,24 @@ def remove_revision(repo, key, ts):
 
 def __remove_revision(repo, sha, ts):
     # keep next revision statements
-    stmts_ats = set()
-    cset_ats = __get_cset_next_after_ts(repo, sha, ts)
-    if (cset_ats != None and list(cset_ats)[-1].type == CSet.DELTA):
-        # not last cset
-        chain_ats = __get_chain_at_ts(repo, sha, cset_ats.time)
-        stmts_ats = __get_revision(repo, sha, chain_ats)
+    stmts_next = set()
+    cset_next = __get_cset_next_after_ts(repo, sha, ts)
+    if cset_next != None:
+        if cset_next.type == CSet.DELTA:
+            # not last cset
+            chain_next = __get_chain_at_ts(repo, sha, cset_next.time)
+            stmts_next = __get_revision(repo, sha, chain_next)
 
     # remove blob and cset
     __remove_cset(repo, sha, ts)
 
     # if not last cset, re-compute next cset
-    if (cset_ats != None and list(cset_ats)[-1].type == CSet.DELTA):
-        __remove_cset(repo, sha, cset_ats.time)
-        chain = __get_chain_at_ts(repo, sha, cset_ats.time)
-        __save_revision(repo, sha, chain, stmts_ats, cset_ats.time)
+    if cset_next != None:
+        if cset_next.type == CSet.DELTA:
+            __remove_cset(repo, sha, cset_next.time)
+            chain = __get_chain_at_ts(repo, sha, cset_next.time)
+            __save_revision(repo, sha, chain, stmts_next, cset_next.time)
 
     # if all csets removed, remove key from hmap
-    if (cset_ats == None):
+    if (cset_next == None):
         __cleanup_hmap()

@@ -443,17 +443,24 @@ class RepoHandler(BaseHandler):
         if last == None:
             raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
+        if update:
+            # When update-param is set and the ts is the exact one of an existing cset (ts does not need to be increasing)
+            if revision_logic.get_cset_at_ts(repo, key, ts):
+                revision_logic.remove_revision(repo, key, ts)
+                self.finish()
+                return
+            else:
+                raise HTTPError(reason="No memento exists for given timestamp. When 'update' is set this must apply", status_code=400)
+
         if not ts > last.time:
             # Appended timestamps must be monotonically increasing!
-            # Except update-param is set und the ts is the exact one of an existing cset
-            if revision_logic.get_cset_at_ts(repo, key, ts) and update:
-                revision_logic.remove_revision(repo, key, ts)
-            else:
-                raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+
 
         if last.type == CSet.DELETE:
             # The resource was deleted already, return instantly.
-            # TODO does not work. the ui shows another cset in this case, although tests do not show an increment in csets
+            # finish() does create a response but does not prevent further processing of request. Therefore return.
             self.finish()
+            return
 
         revision_logic.save_revision_delete(repo, key, ts)

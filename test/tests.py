@@ -88,6 +88,7 @@ class Authorized(unittest.TestCase):
 	uploadDateString = "2013-07-12-00:00:00"
 	uploadDateString2 = "2013-07-13-00:00:00"
 	uploadDateString3 = "2013-07-11-00:00:00"
+	uploadDateString4 = "2014-07-11-00:00:00"
 
 	params_key = {'key':key}
 	params_key_timemap = {'key':key, 'timemap': "true"}
@@ -97,7 +98,8 @@ class Authorized(unittest.TestCase):
 	params_xml = {'key': key_xml}
 	params_xml_datetime = {'key': key_xml,'datetime':uploadDateString}
 	params_xml_datetime2 = {'key': key_xml,'datetime':uploadDateString2}
-	params_xml_datetime2_update = {'key': key_xml,'datetime': uploadDateString2,'update': "true"}
+	params_xml_datetime2_update = {'key': key_xml, 'datetime':uploadDateString2,'update': "true"}
+	params_xml_datetime4_update = {'key': key_xml, 'datetime':uploadDateString4,'update': "true"}
 	params_datetime = {'key':key,'datetime':uploadDateString}
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
@@ -428,7 +430,7 @@ class Authorized(unittest.TestCase):
 # THIS ONE IS ACTUALLY FALSE, Deleting after delete should not create a changeset
 	def test151_number_of_csets_not_changed(self):
 		time.sleep(1)
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a key after a delete did create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),7, "deleting a key after a delete did create a changeset")
 
 	def test152_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),6, "deleting a key after a delete did create a blob")
@@ -446,7 +448,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "pushing after delete did not create a blob")
 
 	def test156_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "pushing after delete did not create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "pushing after delete did not create a changeset")
 
 
 	# Will get obsolete in the future, when this is implemented
@@ -475,19 +477,55 @@ class Authorized(unittest.TestCase):
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
 		self.assertEqual(len(resjson[u'repositories'][u'list']), 0, "wrong number of repos for user3 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 0")
 
-	def test190_put_xml_on_existing(self):
+	def test190_put_xml_on_existing2(self):
 		r = requests.put(self.apiURI, params=self.params_xml, headers=self.header_xml, data=open(self.xmlFile3, 'rb'))
 		self.assertEqual(r.status_code, 200, "putting turtle on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-	def test191_delete_revision(self):
+	def test191_no_hmap_entry_added(self):
+		self.assertEqual(self.numberOfHMaps(),3, "pushing xml on existing key on repo did create a hmap entry")
+
+	def test192_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "pushing xml with existing key did not create a blob")
+
+	def test193_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "pushing xml with existing key on existing repo did not create a changeset")
+
+
+
+	def test200_delete_revision_at_non_existing_ts(self):
+		r = requests.delete(self.apiURI, params=self.params_xml_datetime4_update, headers=self.header_xml)
+		self.assertEqual(r.status_code, 400, "deleting a revision at non-exitsing timestamp does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test201_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "deleting a revision at non-exitsing timestamp did create a blob")
+
+	def test202_number_of_changesets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "deleting a revision at non-exitsing timestamp did create a changeset")		
+
+
+
+	def test210_delete_revision(self):
 		time.sleep(1)
 		r = requests.delete(self.apiURI, params=self.params_xml_datetime2_update, headers=self.header_xml)
 		self.assertEqual(r.status_code, 200, "deleting a revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test211_number_of_blobs_decreased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "deleting a revision did not delete a blob")
+
+	def test212_number_of_changesets_decreased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a revision did not delete a changeset")
+
+
+
+	# TODO test for more facts about deleting a revision
+	# update-delete without ts shall not create a del-cset
 
 	# TODO test other return formats 
 
 	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
 
+
+	# TODO put with wrong format
 
 
 
