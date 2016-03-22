@@ -106,6 +106,7 @@ class Authorized(unittest.TestCase):
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
 	params_datetime4_insert = {'key':key,'datetime':uploadDateString4, 'force': "true"}
 	params_datetime0_insert = {'key':key,'datetime':uploadDateString0, 'force': "true"}
+	params_datetime4_replace = {'key':key,'datetime':uploadDateString4, 'force': "true", "replace": "true"}
 	params_insert = {'key':key, 'force': "true"}
 	empty_params = {}
 
@@ -164,7 +165,7 @@ class Authorized(unittest.TestCase):
 
 	def test010_put_on_empty(self):
 		# put with timestamp
-		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload2)
+		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload)
 		self.assertEqual(r.status_code, 200, "putting on an empty repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test011_number_of_changesets_is_set(self):
@@ -177,8 +178,8 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on empty repo did not create a blob")
 
 	def test014_put_with_same_timestamp(self):
-		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400, "putting with exact same timestamp does not return httpcode 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+		r = requests.put(self.apiURI, params=self.params_datetime, headers=self.header, data=self.payload2)
+		self.assertEqual(r.status_code, 200, "putting with exact same timestamp does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test015_number_of_csets_not_changed(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),1, "pushing on same timestamp did create a changeset")
@@ -212,12 +213,12 @@ class Authorized(unittest.TestCase):
 
 
 	# Will be a feature in the future, this will be obsolete then
-	def test030_put_with_older_timestamp(self):
-		# 400 Bad Request
-		uploadDateString = "2012-07-12-00:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
-		r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
-		self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+	# def test030_put_with_older_timestamp(self):
+	# 	# 400 Bad Request
+	# 	uploadDateString = "2012-07-12-00:00:00"
+	# 	params_datetime = {'key':self.key,'datetime':uploadDateString}
+	# 	r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
+	# 	self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 
 
@@ -246,7 +247,7 @@ class Authorized(unittest.TestCase):
 		resjson = json.loads(r.text)
 		# 2 revisions pushed
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
-		self.assertEqual(len(resjson[u'mementos'][u'list']), 2, "wrong number of mementos in repo,key (returned via GET timemap page of key)")
+		self.assertEqual(len(resjson[u'mementos'][u'list']), 2, "wrong number of mementos in repo,key (returned via GET timemap page of key)\n"+ str(len(resjson[u'mementos'][u'list']))+" instead of 2")
 		
 
 	def test060_get_repo_key_memento_with_datetime(self):
@@ -432,7 +433,6 @@ class Authorized(unittest.TestCase):
 		r = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
 		self.assertEqual(r.status_code, 200, "deleting a key after a delete does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
-# THIS ONE IS ACTUALLY FALSE, Deleting after delete should not create a changeset
 	def test151_number_of_csets_not_changed(self):
 		time.sleep(1)
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),7, "deleting a key after a delete did create a changeset")
@@ -548,12 +548,22 @@ class Authorized(unittest.TestCase):
 		r = requests.put(self.apiURI, params=self.params_insert, headers=self.header, data=self.payload3)
 		self.assertEqual(r.status_code, 200, "inserting on an existing repo after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
+	# def test240_put_insert_revision_after2(self):
+	# 	r = requests.put(self.apiURI, params=self.params_insert, headers=self.header, data=self.payload)
+	# 	self.assertEqual(r.status_code, 200, "inserting on an existing repo after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
 	def test241_number_of_blobs_increased(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "inserting on an existing repo after last revision did not create a blob")
 
 	def test242_number_of_changesets_increased(self):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),11, "inserting on an existing repo after last revision did not create a changeset")
 
+
+
+	def test250_put_replace_revision(self):
+		r = requests.put(self.apiURI, params=self.params_datetime4_replace, headers=self.header, data=self.payload)
+		self.assertEqual(r.status_code, 200, "replacing an existing revision after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+	
 	# TODO test for more facts about deleting a revision
 	# update-delete without ts shall not create a del-cset
 

@@ -56,6 +56,17 @@ def join(parts, sep):
     return string.joinfields(parts, sep)
 
 
+def __create_hmap_entry(sha, key):
+    try:
+        HMap.create(sha=sha, val=key)
+    except IntegrityError:
+        val = (HMap
+               .select(HMap.val)
+               .where(HMap.sha == sha)
+               .scalar())
+        if val != key:
+            raise IntegrityError
+
 def get_repo(username, reponame):
     try:
         repo = (Repo
@@ -260,24 +271,19 @@ def get_repo_index(repo, ts, page):
 
     return hm.iterator()    
 
+# Is Obsolete. insert_revision() now handles saving revisions (at any time)
+# __save_revision() saves revisions with any chain. 
+# No usecase for calling save_revision from outside. 
 def save_revision(repo, key, stmts, ts):
     sha = __get_shasum(key)
     chain = get_chain_tail(repo, key)
 
     # TODO transfer this to dedicated function. This is not in the right place here
     if chain == None or len(chain) == 0:
-        # Mapping for `key` likely does not exist:
-        # Store the SHA-to-KEY mapping in HMap,
-        # looking out for possible collisions.
         try:
-            HMap.create(sha=sha, val=key)
+            __create_hmap_entry(sha, key)
         except IntegrityError:
-            val = (HMap
-                   .select(HMap.val)
-                   .where(HMap.sha == sha)
-                   .scalar())
-            if val != key:
-                raise IntegrityError
+            raise IntegrityError
 
     return __save_revision(repo, sha, chain, stmts, ts)
 
@@ -336,9 +342,13 @@ def save_revision_delete(repo, key, ts):
 
 def insert_revision(repo, key, stmts, ts):
     sha = __get_shasum(key)
-    return __insert_revision(repo, sha, stmts, ts)
+    return __insert_revision(repo, key, sha, stmts, ts)
 
-def __insert_revision(repo, sha, stmts, ts):
+def __insert_revision(repo, key, sha, stmts, ts):
+    # check if there is a revision at this ts. If so remove it first for replacement
+    if __get_cset_at_ts(repo, sha, ts):
+        __remove_revision(repo, sha, ts)
+
     # keep next revision statements
     stmts_next = set()
     cset_next = __get_cset_next_after_ts(repo, sha, ts)
@@ -360,9 +370,28 @@ def __insert_revision(repo, sha, stmts, ts):
             chain = __get_chain_at_ts(repo, sha, cset_next.time)
             __save_revision(repo, sha, chain, stmts_next, cset_next.time)
     else:
+        # check if the resource exists
+        if chain_current == None or len(chain_current) == 0:
+            try:
+                __create_hmap_entry(sha, key)
+            except IntegrityError:
+                raise IntegrityError
+
         # If there is no cset following, just save the new statements
         __save_revision(repo, sha, chain_current, stmts, ts)
 
+
+# Whether replacement is needed is checked in __insert_revision() so
+# this one is not used right now but could become handy in the future
+def replace_revision(repo, key, stmts, ts):
+    sha = __get_shasum(key)
+    return __replace_revision(repo, sha, stmts, ts)
+
+def __replace_revision(repo, sha, stmts, ts):
+    if __get_cset_at_ts(repo, sha, ts):
+        __remove_revision(repo, sha, ts)
+        __insert_revision(repo, sha, stmts, ts)
+    
 
 def get_delta_of_memento(repo, key, ts):
     sha = __get_shasum(key)
