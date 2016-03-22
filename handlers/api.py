@@ -438,13 +438,6 @@ class RepoHandler(BaseHandler):
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        #chain = revision_logic.get_chain_tail(repo, key)
-
-        last = revision_logic.get_chain_last_cset(repo, key)
-
-        if last == None:
-            raise HTTPError(reason="Resource not found in repo.", status_code=404)
-
         if update:
             # When update-param is set and the ts is the exact one of an existing cset (ts does not need to be increasing)
             if revision_logic.get_cset_at_ts(repo, key, ts):
@@ -453,16 +446,8 @@ class RepoHandler(BaseHandler):
                 return
             else:
                 raise HTTPError(reason="No memento exists for given timestamp. When 'update' is set this must apply", status_code=400)
-
-        if not ts > last.time:
-            # Appended timestamps must be monotonically increasing!
-            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
-
-
-        if last.type == CSet.DELETE:
-            # The resource was deleted already, return instantly.
-            # finish() does create a response but does not prevent further processing of request. Therefore return.
-            self.finish()
-            return
-
-        revision_logic.save_revision_delete(repo, key, ts)
+        else:
+            try:
+                revision_logic.save_revision_delete(repo, key, ts)
+            except LookupError:
+                raise HTTPError(reason="Resource not existing to given time.", status_code=404)

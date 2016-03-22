@@ -23,8 +23,8 @@ blobstore = None # Blobstore(bsconf.nodes, **bsconf.opts)
 models.initialize(database, blobstore)
 
 # for local testing
-# os.system(parentdir+"/unprepare.py")
-# os.system(parentdir+"/prepare.py")
+os.system(parentdir+"/unprepare.py")
+os.system(parentdir+"/prepare.py")
 
 
 def seed():
@@ -131,6 +131,7 @@ class Authorized(unittest.TestCase):
 
 
 
+
 	@staticmethod
 	def numberOfCSetsForRepo(repo):
 		cs = CSet.select().where(CSet.repo == repo)
@@ -187,6 +188,9 @@ class Authorized(unittest.TestCase):
 	def test016_number_of_blobs_not_changed(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on same timestamp did create a blob")
 
+	def test017_get_content_of_key(self):
+		r = requests.get(self.apiURI, params=self.params_datetime)
+		self.assertEqual(r.text, self.payload2, "pushing on same time did not replace the memento ")
 
 
 	def test020_put_on_existing(self):
@@ -219,7 +223,7 @@ class Authorized(unittest.TestCase):
 	# 	params_datetime = {'key':self.key,'datetime':uploadDateString}
 	# 	r = requests.put(self.apiURI, params=params_datetime, headers=self.header, data=self.payload)
 	# 	self.assertEqual(r.status_code, 400, "PUT with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
-
+	# see test220 onwards
 
 
 	def test040_get_repo_index(self):
@@ -444,6 +448,7 @@ class Authorized(unittest.TestCase):
 		r = requests.get(self.apiURI, params=self.params_key)
 		self.assertEqual(r.status_code, 404, "GET a deleted key does not return httpcode 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
+
 	def test154_put_after_delete(self):
 		time.sleep(1)
 		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload)
@@ -456,14 +461,30 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "pushing after delete did not create a changeset")
 
 
-	# Will get obsolete in the future, when this is implemented
-	def test160_delete_with_older_timestamp(self):
-		# 400 Bad Request
+	def test160_delete_with_older_timestamp_than_oldest(self):
 		uploadDateString = "2012-07-12-00:00:00"
 		params_datetime = {'key':self.key,'datetime':uploadDateString}
 		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
-		self.assertEqual(r.status_code, 400, "DELETE with older timestamp than newest CSet does not return 400\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+		self.assertEqual(r.status_code, 404, "DELETE with older timestamp than oldest CSet does not return 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
+	def test161_number_of_csets_not_changed(self):
+		time.sleep(1)
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a key before everything did create a changeset")
+
+	def test162_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "deleting a key before everything did create a blob")
+
+	def test163_delete_with_timestamp_inbetween(self):
+		uploadDateString = "2013-07-14-00:00:00"
+		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
+		self.assertEqual(r.status_code, 200, "DELETE with timestamp inbetween does not return 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test164_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "pushing after delete did not create a blob")
+
+	def test165_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "pushing after delete did not create a changeset")
 
 	# def test170_add_repo(self):
 	# 	global user1
@@ -493,7 +514,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "pushing xml with existing key did not create a blob")
 
 	def test193_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "pushing xml with existing key on existing repo did not create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),10, "pushing xml with existing key on existing repo did not create a changeset")
 
 
 
@@ -505,7 +526,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "deleting a revision at non-exitsing timestamp did create a blob")
 
 	def test202_number_of_changesets_not_changed(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "deleting a revision at non-exitsing timestamp did create a changeset")		
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),10, "deleting a revision at non-exitsing timestamp did create a changeset")		
 
 
 
@@ -518,19 +539,23 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),7, "deleting a revision did not delete a blob")
 
 	def test212_number_of_changesets_decreased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),8, "deleting a revision did not delete a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "deleting a revision did not delete a changeset")
 
 
 	def test220_put_insert_revision(self):
-		r = requests.put(self.apiURI, params=self.params_datetime4_insert, headers=self.header, data=self.payload3)
+		r = requests.put(self.apiURI, params=self.params_datetime4_insert, headers=self.header, data=self.payload2)
 		self.assertEqual(r.status_code, 200, "inserting on an existing repo does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test221_number_of_blobs_increased(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),8, "inserting on an existing repo did not create a blob")
 
 	def test222_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),9, "inserting on an existing repo did not create a changeset")
-			
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),10, "inserting on an existing repo did not create a changeset")
+
+	def test223_get_repo_key_memento_after_insert(self):
+		r = requests.get(self.apiURI, params=self.params_datetime4_insert)
+		self.assertEqual(r.text, self.payload2, "GET memento with datetime after insert returns the wrong memento. Was:\n"+r.text+"\nshould be:\n"+self.payload2)
+
 
 	def test230_put_insert_revision_before(self):
 		r = requests.put(self.apiURI, params=self.params_datetime0_insert, headers=self.header, data=self.payload3)
@@ -540,7 +565,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),9, "inserting on an existing repo before initial revision did not create a blob")
 
 	def test232_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),10, "inserting on an existing repo before initial revision did not create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),11, "inserting on an existing repo before initial revision did not create a changeset")
 
 
 	def test240_put_insert_revision_after(self):
@@ -556,12 +581,12 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "inserting on an existing repo after last revision did not create a blob")
 
 	def test242_number_of_changesets_increased(self):
-		self.assertEqual(self.numberOfCSetsForRepo(self.repo),11, "inserting on an existing repo after last revision did not create a changeset")
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),12, "inserting on an existing repo after last revision did not create a changeset")
 
 
 
 	def test250_put_replace_revision(self):
-		r = requests.put(self.apiURI, params=self.params_datetime4_replace, headers=self.header, data=self.payload)
+		r = requests.put(self.apiURI, params=self.params_datetime4_replace, headers=self.header, data=self.payload3)
 		self.assertEqual(r.status_code, 200, "replacing an existing revision after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 	
 	# TODO test for more facts about deleting a revision

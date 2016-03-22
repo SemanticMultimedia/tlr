@@ -335,31 +335,66 @@ def __save_revision(repo, sha, chain, stmts, ts):
 
 def save_revision_delete(repo, key, ts):
     sha = __get_shasum(key)
+    return __save_revision_delete(repo, sha, ts)
 
-    # Insert the new "delete" change.
-    CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
+def __save_revision_delete(repo, sha, ts):
+    chain = __get_chain_at_ts(repo, sha, ts)
+    if chain[-1]:
+        if not chain[-1].type == CSet.DELETE:
+            # only if there are csets before and the last is no delete
+            stmts_next = set()
+            cset_next = __get_cset_next_after_ts(repo, sha, ts)
+            if cset_next != None:
+                if cset_next.type == CSet.DELTA:
+                    # If next changeset is Delta, keep next revision statements
+                    chain_next = __get_chain_at_ts(repo, sha, cset_next.time)
+                    stmts_next = __get_revision(repo, sha, chain_next)
+                elif cset_next.type == CSet.DELETE:
+                    # If next changeset is Delete, remove it
+                    __remove_cset(repo, sha, cset_next.time)
+                # Nothing to be done if next changeset is a Snapshot
 
+                if __get_cset_at_ts(repo, sha, ts):
+                    # If there is a cset at the exact time, delete it 
+                    # (reconstruction of next Cset already happened)
+                    __remove_revision(repo, sha, ts) 
+
+            # Insert the new "delete" change
+            CSet.create(repo=repo, hkey=sha, time=ts, type=CSet.DELETE, len=0)
+
+            if cset_next != None:
+                if cset_next.type == CSet.DELTA:
+                    # If next changeset is Delta, reconstruct
+                    __remove_cset(repo, sha, cset_next.time)
+                    chain = __get_chain_at_ts(repo, sha, cset_next.time)
+                    __save_revision(repo, sha, chain, stmts_next, cset_next.time)
+        else:
+            # Nothing happens. Resource is already deleted. This is legitimate, so no exception needed
+            pass
+    else:
+        raise LookupError
 
 def insert_revision(repo, key, stmts, ts):
     sha = __get_shasum(key)
     return __insert_revision(repo, key, sha, stmts, ts)
 
 def __insert_revision(repo, key, sha, stmts, ts):
-    # check if there is a revision at this ts. If so remove it first for replacement
-    if __get_cset_at_ts(repo, sha, ts):
-        __remove_revision(repo, sha, ts)
-
     # keep next revision statements
     stmts_next = set()
     cset_next = __get_cset_next_after_ts(repo, sha, ts)
 
-    chain_current = __get_chain_at_ts(repo, sha, ts)
     if cset_next != None:
         if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
             chain_next = __get_chain_at_ts(repo, sha, cset_next.time)
             stmts_next = __get_revision(repo, sha, chain_next)
             # If next cset is Delete, no need to reconstruct 
 
+        if __get_cset_at_ts(repo, sha, ts):
+            # check if there is a revision at this ts. If so remove it for replacement
+            # (reconstruction of next Cset already happened)
+            __remove_revision(repo, sha, ts)
+        
+        chain_current = __get_chain_at_ts(repo, sha, ts)
         # save inserted revision
         __save_revision(repo, sha, chain_current, stmts, ts)
 
@@ -370,6 +405,13 @@ def __insert_revision(repo, key, sha, stmts, ts):
             chain = __get_chain_at_ts(repo, sha, cset_next.time)
             __save_revision(repo, sha, chain, stmts_next, cset_next.time)
     else:
+        if __get_cset_at_ts(repo, sha, ts):
+            # check if there is a revision at this ts, which is the latest one. 
+            # If so remove it for replacement (no reconstruction needed, as there is no next Cset)
+            __remove_revision(repo, sha, ts)
+        
+        chain_current = __get_chain_at_ts(repo, sha, ts)
+
         # check if the resource exists
         if chain_current == None or len(chain_current) == 0:
             try:
