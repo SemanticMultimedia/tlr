@@ -256,7 +256,7 @@ class Authorized(unittest.TestCase):
 		resjson = json.loads(r.text)
 		# 2 revisions pushed
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
-		self.assertEqual(len(resjson[u'mementos'][u'list']), 2, "wrong number of mementos in repo,key (returned via GET timemap page of key)\n"+ str(len(resjson[u'mementos'][u'list']))+" instead of 2")
+		self.assertEqual(len(resjson[u'mementos']['list']), 2, "wrong number of mementos in repo,key (returned via GET timemap page of key)\n"+ str(len(resjson[u'mementos']['list']))+" instead of 2")
 		
 
 
@@ -434,7 +434,7 @@ class Authorized(unittest.TestCase):
 		resjson = json.loads(r.text)
 		# 3 revisions pushed
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
-		self.assertEqual(len(resjson[u'mementos'][u'list']), 3, "wrong number of mementos in repo,key (returned via GET timemap page of key) after delete")
+		self.assertEqual(len(resjson[u'mementos']['list']), 3, "wrong number of mementos in repo,key (returned via GET timemap page of key) after delete")
 
 	def test144_get_repo_key_memento_after_delete(self):
 		r = requests.get(self.apiURI, params=self.params_key)

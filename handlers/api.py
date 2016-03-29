@@ -288,7 +288,7 @@ class RepoHandler(BaseHandler):
             self.set_header("Content-Type", "application/json")
 
             self.write('{"original_uri": ' + json_encode(key))
-            self.write(', "mementos":[')
+            self.write(', "mementos": {"list":[')
 
             m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
                  '&datetime={1}"}}')
@@ -300,7 +300,7 @@ class RepoHandler(BaseHandler):
                 self.write(', ' + m.format(cs.time.isoformat(),
                                            cs.time.strftime(QSDATEFMT)))
 
-            self.write(']')
+            self.write(']}')
             self.write('}')
         elif "application/link-format" in accept:
             self.set_header("Content-Type", "application/link-format")
