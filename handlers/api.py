@@ -450,4 +450,4 @@ class RepoHandler(BaseHandler):
             try:
                 revision_logic.save_revision_delete(repo, key, ts)
             except LookupError:
-                raise HTTPError(reason="Resource not existing to given time.", status_code=404)
+                raise HTTPError(reason="Resource does not exist at given time.", status_code=404)

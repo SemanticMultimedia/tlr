@@ -370,6 +370,7 @@ def __save_revision_delete(repo, sha, ts):
                     __save_revision(repo, sha, chain, stmts_next, cset_next.time)
         else:
             # Nothing happens. Resource is already deleted. This is legitimate, so no exception needed
+            # TODO should this be announced to client somehow?
             pass
     else:
         raise LookupError
