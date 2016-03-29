@@ -223,11 +223,28 @@ class RepoHandler(BaseHandler):
     def __get_delta_of_memento(self, repo, key, ts):
         added, deleted = revision_logic.get_delta_of_memento(repo, key, ts)
 
+        accept = self.request.headers.get("Accept", "")
         self.set_header("Vary", "accept-datetime")
-        self.set_header("Content-Type", "text/plain")
-        self.write(join(added, "\n"))
-        self.write("\n")
-        self.write(join(deleted, "\n"))
+        if "application/json" in accept:
+            encoder = json.JSONEncoder()
+
+            self.set_header("Content-Type", "application/json")
+            self.write('{"resource_uri": "'+self.request.protocol+"://"+self.request.host+self.request.uri+'"')
+
+            self.write(', "added":')
+            self.write(encoder.encode(added))
+            self.write(', "deleted":')
+            self.write(encoder.encode(deleted))
+
+            self.write('}')
+        else:
+            added = map(lambda s: "A " + s, added)
+            deleted = map(lambda s: "D " + s, deleted)
+            
+            self.set_header("Content-Type", "text/plain")
+            self.write(join(added, "\n"))
+            self.write("\n")
+            self.write(join(deleted, "\n"))
 
 
     def __get_delta_between_mementos(self, repo, key, ts, delta_ts):
@@ -271,7 +288,7 @@ class RepoHandler(BaseHandler):
             self.set_header("Content-Type", "application/json")
 
             self.write('{"original_uri": ' + json_encode(key))
-            self.write(', "mementos": {"list":[')
+            self.write(', "mementos":[')
 
             m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
                  '&datetime={1}"}}')
@@ -283,7 +300,7 @@ class RepoHandler(BaseHandler):
                 self.write(', ' + m.format(cs.time.isoformat(),
                                            cs.time.strftime(QSDATEFMT)))
 
-            self.write(']}')
+            self.write(']')
             self.write('}')
         elif "application/link-format" in accept:
             self.set_header("Content-Type", "application/link-format")

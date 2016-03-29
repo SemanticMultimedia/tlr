@@ -454,15 +454,17 @@ def __get_delta_of_memento(repo, sha, ts):
             prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
             if len(prev_chain) > 0:
                 prev_data = __get_revision(repo, sha, prev_chain)
-                deleted = map(lambda s: "D " + s, prev_data)
+                deleted = map(lambda s: "" + s, prev_data)
         elif cset.type == CSet.DELTA:
             # If Memento is a delta, we just need to deliver the delta itself
             data = decompress(__get_blob_list(repo, sha, chain)[-1].data)
             for line in data.splitlines():
                 if line[0] == "A":
-                    added.add(line)
+                    # cutoff 'A '
+                    added.add(line[2:])
                 else:
-                    deleted.add(line)
+                    # cutoff 'D '
+                    deleted.add(line[2:])
         else:
             # CSet is Snapshot => Calculate Delta from snapshot to last delta
             current_data = __get_revision(repo, sha, chain)
@@ -470,11 +472,11 @@ def __get_delta_of_memento(repo, sha, ts):
             prev_chain = __get_chain_at_ts(repo, sha, cset.time - datetime.timedelta(seconds=1))
             if len(prev_chain) > 0:
                 prev_data = __get_revision(repo, sha, prev_chain)
-                added = map(lambda s: "A " + s, current_data - prev_data)
-                deleted = map(lambda s: "D " + s, prev_data - current_data)
+                added = map(lambda s: "" + s, current_data - prev_data)
+                deleted = map(lambda s: "" + s, prev_data - current_data)
             else:
                 # No Memento before this snapshot, everything was added
-                added = map(lambda s: "A " + s, current_data)
+                added = map(lambda s: "" + s, current_data)
 
     return added, deleted
 
