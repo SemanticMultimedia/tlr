@@ -565,7 +565,8 @@ def __remove_revision(repo, sha, ts):
     stmts_next = set()
     cset_next = __get_cset_next_after_ts(repo, sha, ts)
     if cset_next != None:
-        if cset_next.type == CSet.DELTA:
+        # also recalculate snapshots in case that snapshot equals the last cset
+        if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
             # not last cset
             chain_next = __get_chain_at_ts(repo, sha, cset_next.time)
             stmts_next = __get_revision(repo, sha, chain_next)
@@ -573,9 +574,11 @@ def __remove_revision(repo, sha, ts):
     # remove blob and cset
     __remove_cset(repo, sha, ts)
 
+
+
     # if not last cset, re-compute next cset
     if cset_next != None:
-        if cset_next.type == CSet.DELTA:
+        if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
             __remove_cset(repo, sha, cset_next.time)
             chain = __get_chain_at_ts(repo, sha, cset_next.time)
             __save_revision(repo, sha, chain, stmts_next, cset_next.time)
