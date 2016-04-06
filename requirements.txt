@@ -11,3 +11,5 @@ pymysql~=0.6.6
 
 # Shell
 ipython~=3.1.0
+
+requests

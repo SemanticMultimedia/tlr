@@ -69,7 +69,7 @@ class UserHandler(BaseHandler):
             user = User.select().where(User.name == username).get()
             self.render("user/show.html", title=user.name, user=user)
         except User.DoesNotExist:
-            raise HTTPError(404)
+            raise HTTPError(reason="User not found.", status_code=404)
 
 class EditUserHandler(BaseHandler):
     @authenticated

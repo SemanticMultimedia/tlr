@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:skos="http://www.w3.org/2004/02/skos/core#" xmlns:bibo="http://purl.org/ontology/bibo/" xmlns:rda="http://RDVocab.info/Elements" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:cd="http://www.recshop.fake/cd#">
+
+
+<rdf:Description
+rdf:about="http://www.recshop.fake/cd/Empire Burlesque">
+  <cd:artist>Bob Dylan</cd:artist>
+  <cd:country>USA</cd:country>
+  <cd:company>Columbia</cd:company>
+  <cd:price>10.90</cd:price>
+  <cd:year>1985</cd:year>
+</rdf:Description>
+
+
+<rdf:Description>
+<dcterms:identifier>(Uk)RN291873144</dcterms:identifier>
+<dcterms:title>Ordovician trilobites from the Romaine and Mingan formations (Ibexian-late Whiterockian), Mingan Islands, Quebec</dcterms:title>
+<dcterms:creator>
+<rdf:Description>
+<rdfs:label>Shaw, F.C.</rdfs:label>
+</rdf:Description>
+</dcterms:creator>
+<dcterms:creator>
+<rdf:Description>
+<rdfs:label>Bolton, T.E.</rdfs:label>
+</rdf:Description>
+</dcterms:creator>
+<dcterms:type>
+<rdf:Description>
+<rdfs:label>text</rdfs:label>
+</rdf:Description>
+</dcterms:type>
+<dcterms:type>
+<rdf:Description>
+<rdfs:label>article</rdfs:label>
+</rdf:Description>
+</dcterms:type>
+<rda:placeOfPublication>
+<rdf:Description>
+<rdfs:label>xxu</rdfs:label>
+<skos:inScheme rdf:resource="http://id.loc.gov/vocabulary/countries" />
+<rdf:type rdf:resource="http://www.w3.org/2004/02/skos/core#Concept" />
+</rdf:Description>
+</rda:placeOfPublication>
+<dcterms:publisher>
+<rdf:Description>
+<rdfs:label>THE PALEONTOLOGICAL SOCIETY</rdfs:label>
+</rdf:Description>
+</dcterms:publisher>
+<dcterms:issued>2011</dcterms:issued>
+<dcterms:language>
+<rdf:Description>
+<rdfs:label>eng</rdfs:label>
+<skos:inScheme rdf:resource="http://id.loc.gov/vocabulary/iso639-2" />
+<rdf:type rdf:resource="http://www.w3.org/2004/02/skos/core#Concept" />
+</rdf:Description>
+</dcterms:language>
+<bibo:pageStart>406</bibo:pageStart>
+<bibo:pageEnd>441</bibo:pageEnd>
+<dcterms:subject>
+<rdf:Description>
+<skos:notation>560</skos:notation>
+<skos:inScheme rdf:resource="http://purl.org/dc/terms/DDC" />
+<rdf:type rdf:resource="http://www.w3.org/2004/02/skos/core#Concept" />
+</rdf:Description>
+</dcterms:subject>
+<dcterms:subject>
+<rdf:Description>
+<skos:notation>QE701</skos:notation>
+<skos:inScheme rdf:resource="http://purl.org/dc/terms/LCC" />
+<rdf:type rdf:resource="http://www.w3.org/2004/02/skos/core#Concept" />
+</rdf:Description>
+</dcterms:subject>
+<dcterms:isPartOf>
+<rdf:Description>
+<dcterms:type>
+<rdf:Description>
+<rdfs:label>issue</rdfs:label>
+</rdf:Description>
+</dcterms:type>
+<rdfs:label>VOL 85, NUMB 3</rdfs:label>
+<bibo:issue>85(3)</bibo:issue>
+<dcterms:isPartOf>
+<rdf:Description>
+<dcterms:type>
+<rdf:Description>
+<rdfs:label>journal</rdfs:label>
+</rdf:Description>
+</dcterms:type>
+<rdfs:label>JOURNAL OF PALEONTOLOGY</rdfs:label>
+<bibo:issn>0022-3360</bibo:issn>
+<dcterms:identifier>urn:issn:0022-3360</dcterms:identifier>
+</rdf:Description>
+</dcterms:isPartOf>
+</rdf:Description>
+</dcterms:isPartOf>
+<dcterms:bibliographicCitation>JOURNAL OF PALEONTOLOGY 85(3), 406-441. (2011)</dcterms:bibliographicCitation>
+</rdf:Description>
+
+</rdf:RDF> 

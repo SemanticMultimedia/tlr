@@ -23,6 +23,12 @@
       <div class="sk-double-bounce2"></div>
     </div>
   </div>
+  <div class="col-sm-10 col-sm-offset-1" id="mm-changed">
+    <div class="sk-spinner sk-spinner-double-bounce repo-spinner">
+      <div class="sk-double-bounce1"></div>
+      <div class="sk-double-bounce2"></div>
+    </div>
+  </div>
 </div>
 {% end %}
 
@@ -50,6 +56,26 @@
 
       $viewer.append($pre);
       $('#mm-target').html($viewer);
+    });
+  });
+
+    $(function () {
+    $.get('{{ api_url }}?key={{ key }}{% if datetime %}&datetime={{ datetime }}{% end %}&delta=true', function (res) {
+      var $viewer, $pre, $code, isodate, mmt;
+
+      isodate = '{{ datetime }}';
+      isodate = isodate.substr(0, 10) + ' ' + isodate.substr(11);
+      mmt = moment(isodate);
+
+      $viewer = $('<div class="panel panel-default"><div class="panel-heading"><h4 class="panel-title">Changed Triples</h4></div></div>');
+      $code = $('<code></code>');
+      $code.text(res.split('\n').sort().join('\n'));
+
+      $pre = $('<pre class="nq-view"></pre>');
+      $pre.append($code);
+
+      $viewer.append($pre);
+      $('#mm-changed').html($viewer);
     });
   });
 </script>

@@ -9,10 +9,14 @@ from tornado.web import HTTPError
 from tornado.escape import url_escape, json_encode
 #from peewee import IntegrityError, SQL, fn
 from peewee import IntegrityError
+from RDF import RedlandError
 
 from models import User, Token, Repo, HMap, CSet, Blob
 from handlers import RequestHandler
 import revision_logic
+
+import logging
+logger = logging.getLogger('debug')
 
 def authenticated(method):
     """Decorate API methods to require user authentication via token."""
@@ -33,7 +37,9 @@ def date(s, fmt):
     return datetime.datetime.strptime(s, fmt)
 
 def now():
-    return datetime.datetime.utcnow()
+    # replace microseconds, because otherwise this fraction will cause 
+    # inconsitencies when comparing to datetimes that are exact to the second only
+    return datetime.datetime.utcnow().replace(microsecond=0)
 
 # TODO: Tune zlib compression parameters `level`, `wbits`, `bufsize`?
 
@@ -81,81 +87,78 @@ class BaseHandler(RequestHandler):
                 }
             }))
 
+class UserHandler(BaseHandler):
+    """Processes user-regarding requests, such as the index page for a user"""
+    def get(self, username):
+        try:
+            user = User.select().where(User.name == username).get()
+        except User.DoesNotExist:
+            raise HTTPError(reason="User not found.", status_code=404)
+        
+        repos = Repo.select().where(Repo.user == user)
+        reposit = repos.iterator()
+
+        # TODO: Paginate?
+
+        first = None
+        try:
+            first = reposit.next()
+        except StopIteration:
+            # No repos for user
+            # No need to raise an error, just return empty list in json
+            pass
+            
+
+        accept = self.request.headers.get("Accept", "")
+        user_url = (self.request.protocol + "://" + self.request.host)
+
+        if "application/json" in accept or "*/*" in accept:
+            self.set_header("Content-Type", "application/json")
+
+            self.write('{"username": ' + json_encode(username))
+            self.write(', "repositories": {"list":[')
+
+            m = ('{{"name": "{0}", "uri": "' + user_url +
+                 '/'+username+'/{0}"}}')
+
+            if first:
+                self.write(m.format(first.name))
+
+            for repo in reposit:
+                self.write(', ' + m.format(repo.name))
+
+            self.write(']}')
+            self.write('}')
+
+        # TODO other return formats
 
 class RepoHandler(BaseHandler):
-
-    # def setHeader(self, key, timemap):
-    #
-    #     if key and not timemap:
-    #         self.set_header("Content-Type", "application/n-quads")
-    #         self.set_header("Vary", "accept-datetime")
-    #
-    #         sha = revision_logic.get_shasum(key)
-    #         chain = revision_logic.get_chain(repo, sha, ts)
-    #
-    #         if chain == None:
-    #             raise HTTPError(404)
-    #
-    #         timegate_url = (self.request.protocol + "://" +
-    #                         self.request.host + self.request.path)
-    #         timemap_url = (self.request.protocol + "://" +
-    #                         self.request.host + self.request.uri + "&timemap=true")
-    #
-    #         #TODO: set link for "first memento", "last memento"
-    #         self.set_header("Link",
-    #                         '<%s>; rel="original"'
-    #                         ', <%s>; rel="timegate"'
-    #                         ', <%s>; rel="timemap"'
-    #                         % (key, timegate_url, timemap_url))
-    #
-    #         self.set_header("Memento-Datetime",
-    #                         chain[-1].time.strftime(RFC1123DATEFMT))
-    #     elif key and timemap:
-    #         self.set_header("Content-Type", "application/json")
-
-
-    # """Processes repository calls: Push, timegate, memento, timemap etc."""
-    # def head(self, username, reponame):
-    #     self.check_args()
-    #
-    #     timemap = self.get_query_argument("timemap", "false") == "true"
-    #     index = self.get_query_argument("index", "false") == "true"
-    #     key = self.get_query_argument("key", None)
-    #
-    #     if (index and timemap) or (index and key) or (timemap and not key):
-    #         raise HTTPError(400)
-    #
-    #     if self.get_query_argument("datetime", None):
-    #         datestr = self.get_query_argument("datetime")
-    #         ts = date(datestr, QSDATEFMT)
-    #     elif "Accept-Datetime" in self.request.headers:
-    #         datestr = self.request.headers.get("Accept-Datetime")
-    #         ts = date(datestr, RFC1123DATEFMT)
-    #     else:
-    #         ts = now()
-    #
-    #     #load repo
-    #     repo = revision_logic.load_repo(username, reponame)
-    #     if repo == None:
-    #         raise HTTPError(404)
-    #
-    #     self.setHeader()
-    #
-    #     self.finish()
-
 
     """Processes repository calls: Push, timegate, memento, timemap etc."""
     def get(self, username, reponame):
         timemap = self.get_query_argument("timemap", "false") == "true"
         index = self.get_query_argument("index", "false") == "true"
         key = self.get_query_argument("key", None)
+        delta = self.get_query_argument("delta", "false") == "true"
+        # if delta is not True but there is a delta param, check if it is a valid ts. 
+        if self.get_query_argument("delta", False) and not delta:
+            datestr = self.get_query_argument("delta")
+            try:
+                delta_ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of delta timestamp", status_code=400)
+        else:
+            delta_ts = None
 
         if (index and timemap) or (index and key) or (timemap and not key):
             raise HTTPError(reason="Invalid arguments.", status_code=400)
 
         if self.get_query_argument("datetime", None):
             datestr = self.get_query_argument("datetime")
-            ts = date(datestr, QSDATEFMT)
+            try:
+                ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
             ts = date(datestr, RFC1123DATEFMT)
@@ -167,10 +170,14 @@ class RepoHandler(BaseHandler):
         if repo == None:
             raise HTTPError(reason="Repo not found.", status_code=404)
 
-        if key and not timemap:
+        if key and not timemap and not delta and not delta_ts:
             self.__get_revision(repo, key, ts)
         elif key and timemap:
             self.__get_timemap(repo, key)
+        elif key and delta:
+            self.__get_delta_of_memento(repo, key, ts)
+        elif key and delta_ts:
+            self.__get_delta_between_mementos(repo, key, ts, delta_ts)
         elif index:
             self.__get_index(repo, ts)
         else:
@@ -211,6 +218,49 @@ class RepoHandler(BaseHandler):
         stmts = revision_logic.get_revision(repo, key, chain)
 
         self.write(join(stmts, "\n"))
+
+
+    def __get_delta_of_memento(self, repo, key, ts):
+        added, deleted = revision_logic.get_delta_of_memento(repo, key, ts)
+
+        accept = self.request.headers.get("Accept", "")
+        self.set_header("Vary", "accept-datetime")
+        if "application/json" in accept:
+            encoder = json.JSONEncoder()
+
+            self.set_header("Content-Type", "application/json")
+            self.write('{"resource_uri": "'+self.request.protocol+"://"+self.request.host+self.request.uri+'"')
+
+            self.write(', "added":')
+            self.write(encoder.encode(added))
+            self.write(', "deleted":')
+            self.write(encoder.encode(deleted))
+
+            self.write('}')
+        else:
+            added = map(lambda s: "A " + s, added)
+            deleted = map(lambda s: "D " + s, deleted)
+            
+            self.set_header("Content-Type", "text/plain")
+            self.write(join(added, "\n"))
+            self.write("\n")
+            self.write(join(deleted, "\n"))
+
+
+    def __get_delta_between_mementos(self, repo, key, ts, delta_ts):
+        try:
+            if ts > delta_ts:
+                added, deleted = revision_logic.get_delta_between_mementos(repo, key, ts, delta_ts)
+            else:
+                added, deleted = revision_logic.get_delta_between_mementos(repo, key, delta_ts, ts)
+        except ValueError:
+            raise HTTPError(reason="No delta possible for given timestamps", status_code=400)
+
+        self.set_header("Vary", "accept-datetime")
+        self.set_header("Content-Type", "text/plain")
+        self.write(join(added, "\n"))
+        self.write("\n")
+        self.write(join(deleted, "\n"))
 
     def __get_timemap(self, repo, key):
         # Generate a timemap containing historic change information
@@ -286,11 +336,73 @@ class RepoHandler(BaseHandler):
         for h in hm:
             self.write(h.val + "\n")
 
+
+        # def setHeader(self, key, timemap):
+    #
+    #     if key and not timemap:
+    #         self.set_header("Content-Type", "application/n-quads")
+    #         self.set_header("Vary", "accept-datetime")
+    #
+    #         sha = revision_logic.get_shasum(key)
+    #         chain = revision_logic.get_chain(repo, sha, ts)
+    #
+    #         if chain == None:
+    #             raise HTTPError(404)
+    #
+    #         timegate_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.path)
+    #         timemap_url = (self.request.protocol + "://" +
+    #                         self.request.host + self.request.uri + "&timemap=true")
+    #
+    #         #TODO: set link for "first memento", "last memento"
+    #         self.set_header("Link",
+    #                         '<%s>; rel="original"'
+    #                         ', <%s>; rel="timegate"'
+    #                         ', <%s>; rel="timemap"'
+    #                         % (key, timegate_url, timemap_url))
+    #
+    #         self.set_header("Memento-Datetime",
+    #                         chain[-1].time.strftime(RFC1123DATEFMT))
+    #     elif key and timemap:
+    #         self.set_header("Content-Type", "application/json")
+
+
+    # """Processes repository calls: Push, timegate, memento, timemap etc."""
+    # def head(self, username, reponame):
+    #     self.check_args()
+    #
+    #     timemap = self.get_query_argument("timemap", "false") == "true"
+    #     index = self.get_query_argument("index", "false") == "true"
+    #     key = self.get_query_argument("key", None)
+    #
+    #     if (index and timemap) or (index and key) or (timemap and not key):
+    #         raise HTTPError(400)
+    #
+    #     if self.get_query_argument("datetime", None):
+    #         datestr = self.get_query_argument("datetime")
+    #         ts = date(datestr, QSDATEFMT)
+    #     elif "Accept-Datetime" in self.request.headers:
+    #         datestr = self.request.headers.get("Accept-Datetime")
+    #         ts = date(datestr, RFC1123DATEFMT)
+    #     else:
+    #         ts = now()
+    #
+    #     #load repo
+    #     repo = revision_logic.load_repo(username, reponame)
+    #     if repo == None:
+    #         raise HTTPError(404)
+    #
+    #     self.setHeader()
+    #
+    #     self.finish()
+
     @authenticated
     def put(self, username, reponame):
         # Create a new revision of the resource specified by `key`.
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
+        # force = self.get_query_argument("force", None)
+        # replace = self.get_query_argument("replace", None)
 
         if username != self.current_user.name:
             raise HTTPError(403)
@@ -304,15 +416,19 @@ class RepoHandler(BaseHandler):
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        chain = revision_logic.get_chain_tail(repo, key)
 
         # Parse and normalize into a set of N-Quad lines
-        stmts = revision_logic.parse(self.request.body, fmt)
+        try:
+            stmts = revision_logic.parse(self.request.body, fmt)
+        except RedlandError, e:
+            # TODO decide about error code. This is actual a client side error (4XX), but also not a bad request as such
+            raise HTTPError(reason="Error while parsing payload: " + e.value, status_code=500)
 
         try:
-            prev_state = revision_logic.save_revision(repo, key, chain, stmts, ts)
+            prev_state = revision_logic.insert_revision(repo, key, stmts, ts)
         except ValueError:
-            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+            # raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
+            raise HTTPError(reason="Error while saving revision.", status_code=500)
         except IntegrityError:
             raise HTTPError(500)
 
@@ -325,6 +441,7 @@ class RepoHandler(BaseHandler):
         # a delete, else insert a `CSet.DELETE` entry without any blob data.
 
         key = self.get_query_argument("key")
+        update = self.get_query_argument("update", "false") == "true"
 
         if username != self.current_user.name:
             raise HTTPError(403)
@@ -338,19 +455,16 @@ class RepoHandler(BaseHandler):
         datestr = self.get_query_argument("datetime", None)
         ts = datestr and date(datestr, QSDATEFMT) or now()
 
-        #chain = revision_logic.get_chain_tail(repo, key)
-
-        last = revision_logic.get_chain_last_cset(repo, key)
-
-        if last == None:
-            raise HTTPError(reason="Resource not found in repo.", status_code=404)
-
-        if not ts > last.time:
-            # Appended timestamps must be monotonically increasing!
-            raise HTTPError(reason="Timestamps must be monotonically increasing.", status_code=400)
-
-        if last.type == CSet.DELETE:
-            # The resource was deleted already, return instantly.
-            self.finish()
-
-        revision_logic.save_revision_delete(repo, key, ts)
+        if update:
+            # When update-param is set and the ts is the exact one of an existing cset (ts does not need to be increasing)
+            if revision_logic.get_cset_at_ts(repo, key, ts):
+                revision_logic.remove_revision(repo, key, ts)
+                self.finish()
+                return
+            else:
+                raise HTTPError(reason="No memento exists for given timestamp. When 'update' is set this must apply", status_code=400)
+        else:
+            try:
+                revision_logic.save_revision_delete(repo, key, ts)
+            except LookupError:
+                raise HTTPError(reason="Resource does not exist at given time.", status_code=404)
