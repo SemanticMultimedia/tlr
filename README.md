@@ -5,6 +5,7 @@
 
 ## Introduction
 
+A public Tailr instance can be found at [tailr.s16a.org](http://tailr.s16a.org/) providing repositories for e.g. [LOV](http://tailr.s16a.org/mgns/LOV) and [DBpedia Live](http://tailr.s16a.org/mgns/dbpediaLive).
 
 ## Configuration
 
@@ -70,14 +71,14 @@ First, we will build the application image:
 
 ```shell
 # build the application image and tag it
-docker build -t pmeinhardt/tailr .
+docker build -t semanticmultimedia/tailr .
 ```
 
 It is probably a good idea to publish tagged releases to [Docker Hub](https://hub.docker.com/). This way, we avoid re-building them for deployments:
 
 ```shell
 # best append a version identifier in the build step above and push the resulting image to docker hub
-docker push pmeinhardt/tailr:0.0.1
+docker push semanticmultimedia/tailr:0.0.2
 ```
 
 We can then launch a database container and one or more application containers linked to it:
@@ -87,11 +88,11 @@ We can then launch a database container and one or more application containers l
 docker run -d -e MYSQL_ROOT_PASSWORD=root -e MYSQL_USER=tailr -e MYSQL_PASSWORD=tailr -e MYSQL_DATABASE=tailr --name mariadb mariadb
 
 # run the database migration in a temporary application container (only important env variable is for the database here)
-docker run --rm -it --link mariadb:db -e COOKIE_SECRET=x -e GITHUB_CLIENT_ID=y -e GITHUB_SECRET=z -e DATABASE_URL=mysql://tailr:tailr@db/tailr pmeinhardt/tailr python prepare.py
+docker run --rm -it --link mariadb:db -e COOKIE_SECRET=x -e GITHUB_CLIENT_ID=y -e GITHUB_SECRET=z -e DATABASE_URL=mysql://tailr:tailr@db/tailr semanticmultimedia/tailr python prepare.py
 
 # run the application container, linking it to the db container and binding container port 5000 to port 8000 on 127.0.0.1 of the host machine
 # replace the dummy "xxx" values for the GitHub access with the actual client-id and secret
-docker run -d --link mariadb:db -e COOKIE_SECRET=secret -e GITHUB_CLIENT_ID=xxx -e GITHUB_SECRET=xxx -e DATABASE_URL=mysql://tailr:tailr@db/tailr -p 127.0.0.1:8000:5000 pmeinhardt/tailr
+docker run -d --link mariadb:db -e COOKIE_SECRET=secret -e GITHUB_CLIENT_ID=xxx -e GITHUB_SECRET=xxx -e DATABASE_URL=mysql://tailr:tailr@db/tailr -p 127.0.0.1:8000:5000 --name tailr semanticmultimedia/tailr
 
 # for a mysql shell, run the following command replacing "xxx" with the name of the database container (see `docker ps -a`)
 docker run --rm -it --link xxx:mysql mariadb sh -c 'exec mysql -h"$MYSQL_PORT_3306_TCP_ADDR" -P"$MYSQL_PORT_3306_TCP_PORT" -uroot -p"$MYSQL_ENV_MYSQL_ROOT_PASSWORD"'
@@ -163,8 +164,50 @@ Additional information on "running and deploying" Tornado apps in general can be
 
 ## Push API
 
+The Push API allows to insert new data revisions into the system. A customized documentation of the Push API can be found in your repository.
+
+```shell
+# export the token for later use
+export TOKEN="0bc283..."
+
+# create a new revision of a resource with an RDF description
+curl -X PUT \
+  -H "Authorization: token $TOKEN" \
+  -H "Content-Type: application/n-triples" \
+  --data-binary @path/to/resource.nt \
+  "http://tailr.s16a.org/api/USER_NAME/REPO_NAME?key=http://...&datetime=yyyy-MM-dd-HH:mm:ss"
+
+# mark a resource as deleted
+curl -X DELETE \
+-H "Authorization: token $TOKEN" \
+"http://tailr.s16a.org/api/USER_NAME/REPO_NAME?key=http://...&datetime=..."
+```
 
 ## Storage model
 
+Tailr uses a hybrid storage model of independent copies (snapshots) and inter-revision changes (deltas).
 
 ## Memento API
+
+Prior states of linked data resources tracked in your repositories are accessible through a [Memento](https://datatracker.ietf.org/doc/rfc7089/) API.
+
+You can request a certain resource from this repository by specifying its URI in the key query parameter. Specify the date and time for the resource state you are interested in by passing an Accept-Datetime HTTP header, for instance:
+
+```shell
+curl -H "Accept-Datetime: Thu, 11 June 2015 09:45:00 GMT" "http://tailr.s16a.org/api/USER_NAME/REPO_NAME?key=http://..."
+```
+
+In order to link to a certain resource state, you may also provide the datetime argument as a query parameter:
+
+```shell
+curl "http://tailr.s16a.org/api/USER_NAME/REPO_NAME?key=http://...&datetime=2015-06-11-09:45:00"
+```
+
+To find out when a resource was changed, query for the timemap:
+
+```shell
+curl "http://tailr.s16a.org/api/USER_NAME/REPO_NAME?key=http://...&timemap=true"
+```
+
+You can find links to a small sample of resources from this repository below:
+
