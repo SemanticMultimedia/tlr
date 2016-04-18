@@ -30,6 +30,7 @@
 <script src="https://cdn.jsdelivr.net/momentjs/2.10.3/moment.min.js"></script>
 
 {% set api_url = request.protocol + "://" + request.host + "/api" + request.path %}
+{% set web_url = request.protocol + "://" + request.host + request.path %}
 <script>
   $(function () {
     $.get('{{ api_url }}?key={{ key }}&timemap=true', function (res) {
@@ -38,20 +39,67 @@
       mementos = res.mementos.list;
 
       $panel = $('<div class="panel panel-default"><div class="panel-heading"><h4 class="panel-title"><span class="octicon octicon-clock pull-right"></span> {{ key }}</h4></div></div>');
-      $hist = $('<div class="list-group"></div>');
+      $hist = $('<div class="list-group clearfix"></div>');
 
       mementos.forEach(function (m) {
         mmt = moment(m.datetime);
-        $el = $('<a href="" class="list-group-item"></a>');
-        $el.append(mmt.format('ddd, D MMM YYYY HH:mm:ss'));
-        $el.append('<span class="pull-right text-muted">' + mmt.fromNow() + '</span>');
+
+        $lgi = $('<div class="list-group-item"></div>')
+
+
+        $el = $('<a href=""></a>');
+        $el.append('<span>'+mmt.format('ddd, D MMM YYYY HH:mm:ss')+'</span>');
         $el.attr('href', m.uri.replace('/api', ''));
-        $hist.append($el);
+        $lgi.append($el);
+
+        $actions = $('<span class="text-muted"></span>')
+        $actions.append('<span class="pull-right text-muted memento-infos">'+mmt.fromNow()+'</span>');
+        
+        {% if current_user == repo.user %}
+        del_api_uri = '{{ web_url }}?key={{ key }}&datetime='+ mmt.format('YYYY-MM-DD-HH:mm:ss')+'&update=true';
+        $actions.append('<span class="pull-right text-muted memento-actions"> <button class="btn btn-danger btn-xs" onclick="delete_revision(\''+del_api_uri+'\')" style="vertical-align: middle"><span style="font-size: 0.8em" class="glyphicon glyphicon-remove"></span> Delete Revision </button></span>');
+        {% end %}
+
+
+        $lgi.append($actions);
+
+        $hist.append($lgi);
       });
 
       $panel.append($hist);
       $('#hist-target').html($panel);
     });
   });
+
+  function getCookie(name) {
+    var r = document.cookie.match("\\b" + name + "=([^;]*)\\b");
+    return r ? r[1] : undefined;
+}
+
+  function delete_revision(apiURI) {
+    if (confirm('Are you sure? Confirming will delete this memento. This cannot be undone')){
+      $.ajax({
+        url: apiURI,
+        type: 'DELETE',
+        headers: {
+          "X-XSRFToken": getCookie("_xsrf")
+        },
+        success: function(result) {
+            window.location.reload(true);
+            // $('.flashs').append("<div class='alert alert-success alert-dismissible'><button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button><strong>Revision was successfully deleted!</strong></div>");
+        },
+        statusCode: {
+          401: function(r, status, error) {
+            $('.flashs').append("<div class='alert alert-danger alert-dismissible'><button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button><strong>401</strong>: "+error+"</div>");
+          },
+          403: function(r, status, error) {
+            $('.flashs').append("<div class='alert alert-danger alert-dismissible'><button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button><strong>403</strong>: "+error+"</div>");
+          }
+        }
+
+      });
+    }
+  }
+
 </script>
 {% end %}

@@ -1,0 +1,90 @@
+{% extends "../base.html" %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/highlight.js/8.6.0/styles/github.min.css">
+{% end %}
+
+{% block content %}
+<div class="row">
+  <div class="col-sm-10 col-sm-offset-1">
+    <div class="masthead">
+      <div class="repo-head">
+        <h1 class="repo-title"><a href="{{ reverse_url("web:user", repo.user.name) }}" class="repo-title-username">{{ repo.user.name }}</a><span class="path-divider">/</span><a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="repo-title-reponame">{{ repo.name }}</a> <span class="mega-octicon octicon-repo repo-icon"></span></h1>
+        <p class="text-muted">{{ repo.desc }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row text-center pagination-row">
+	{% set base_url = request.protocol + "://" + request.host + request.path %}
+	<nav>
+	  <ul class="pagination ">
+	  		<li><a href="{{ base_url + "?index=true" }}" aria-label="First"><span aria-hidden="true">First</span></a> </li>
+		{% if current_page != 1 %}
+			<li>
+      		<a href="{{ base_url + "?index=true&page="+ str(current_page-1) }}" aria-label="Previous">
+		{% else %}
+	    	<li class="disabled">
+	    	<a href="#" aria-label="Previous">
+		{% end %}	 
+        	<span aria-hidden="true">&laquo;</span>
+        	</a>
+	    </li>
+
+
+	    {% set i = 0 %}
+	    {% set last_page = 0 %}
+	    {% set page_count = 0 %}
+	    {% while i < key_count %}
+	    	{% set page_count += 1 %}
+	    	{% if current_page == page_count %}
+				<li class="active"><a href="{{ base_url + "?index=true&page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
+			{% elif (page_count >= current_page -5) and (page_count <= current_page +5) %}
+	    		<li><a href="{{ base_url + "?index=true&page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
+	    	{% end %}
+			{% set i += page_size %}
+			{% set last_page = page_count %}
+	    {% end %}
+
+
+
+
+
+		{% if current_page < last_page %}
+			<li>
+      		<a href="{{ base_url + "?index=true&page="+ str(current_page+1) }}" aria-label="Next">
+		{% else %}
+	    	<li class="disabled">
+	    	<a href="#" aria-label="Previous">
+		{% end %}	 
+        	<span aria-hidden="true">&raquo;</span>
+        	</a>
+	    </li>
+	    <li><a href="{{ base_url + "?index=true&page="+str(last_page) }}" aria-label="Last"><span aria-hidden="true">Last</span></a> </li>
+	  </ul>
+	</nav>
+</div>
+<div class="row">
+	<div class="col-sm-10 col-sm-offset-1">
+		<div class="panel panel-default panel-content">
+	      <div class="panel-heading">Keys</div>
+	  		<ul class="list-group">
+	        {% for h in hm %}
+	        	<li class="list-group-item"><a href="{{ base_url + "?key=" + h.val + "&timemap=true" }}">{{ h.val }}</a></li>
+	        {% end %}
+	      	</ul>
+	      </div>
+	    </div>
+	</div>
+</div>
+{% end %}
+
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/languages/bash.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+<script type="text/javascript">
+	$( ".pagination-row" ).clone().insertAfter( ".panel-content" );
+</script>
+{% end %}

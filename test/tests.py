@@ -33,6 +33,17 @@ def seed():
 	token = Token.create(value="123456", user=user1, seen=True, desc="important description")
 	repo1 = Repo.create(user=user1, name="repo1", desc="important description")
 	repo2 = Repo.create(user=user2, name="repo2", desc="important description")
+	repo3 = Repo.create(user=user1, name="lov_test", desc="important description")
+	# i = 0 
+	# tailrToken = "123456"
+	# header = {'Authorization':"token "+tailrToken, 'Content-Type':"application/n-triples"}
+	# payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	# apiURI = "http://localhost:5000/api/user1/lov_test"
+	# while i <= 1000:
+	# 	key = "http://www.key.de/"+str(i)
+	# 	params = {'key':key}
+	# 	r = requests.put(apiURI, params=params, headers=header, data=payload)
+	# 	i += 1
 
 # def seed_repo3():
 
@@ -242,7 +253,7 @@ class Authorized(unittest.TestCase):
 		resjson = json.loads(r.text)
 		# 1 repo for user1
 		# TODO proper unicode decoding. For some reason, u'' in this json is dealt with as a string
-		self.assertEqual(len(resjson[u'repositories'][u'list']), 1, "wrong number of repos for user1 (returned via GET user)\n "+ str(len(r.text.splitlines())) +" instead of 1")
+		self.assertEqual(len(resjson[u'repositories'][u'list']), 2, "wrong number of repos for user1 (returned via GET user)\n "+ str(len(resjson[u'repositories'][u'list'])) +" instead of 2")
 
 	def test042_get_user2_index(self):
 		r = requests.get(self.user2URI)

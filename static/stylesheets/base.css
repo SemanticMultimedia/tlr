@@ -344,3 +344,11 @@ pre.nq-view {
   margin: 0;
   font-size: .9em;
 }
+
+.memento-actions {
+  padding-right: 3em;
+  vertical-align: middle;
+  line-height: 100%;
+  height: 100%;
+  vertical-align: center;
+}

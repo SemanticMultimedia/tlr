@@ -98,6 +98,7 @@ curl -X DELETE \
         {% for s in samples %}
         <li class="list-group-item"><a href="{{ base_url + "?key=" + s.val + "&timemap=true" }}">{{ s.val }}</a></li>
         {% end %}
+        <li class="list-group-item" style="background: #F5F5F5;"><a class="btn btn-default" href="{{ base_url + "?index=true" }}">Show All</a></li>
       </ul>
       {% end %}
     </div>

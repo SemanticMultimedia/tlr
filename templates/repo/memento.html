@@ -68,15 +68,29 @@
       mmt = moment(isodate);
 
       $viewer = $('<div class="panel panel-default"><div class="panel-heading"><h4 class="panel-title">Changed Triples</h4></div></div>');
+      $viewer.append('<div class="panel-body"><button id="changesTriggerButton" type="button" onclick="ShowOrHideChanges()" class="btn btn-primary btn-sm">Show Changes</button></div>');
       $code = $('<code></code>');
       $code.text(res.split('\n').sort().join('\n'));
 
-      $pre = $('<pre class="nq-view"></pre>');
+      $pre = $('<pre id="changesPre" class="nq-view" style="display: none;"></pre>');
       $pre.append($code);
 
       $viewer.append($pre);
       $('#mm-changed').html($viewer);
     });
   });
+
+  function ShowOrHideChanges() {
+    var pre = document.getElementById("changesPre");
+    var button = document.getElementById("changesTriggerButton");
+    if (pre.style.display == "none") {
+      pre.style.display = "block";
+      button.innerHTML = "Hide Changes"
+
+    } else {
+      pre.style.display = "none";
+      button.innerHTML = "Show Changes"
+    }
+  }
 </script>
 {% end %}
