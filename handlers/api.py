@@ -286,8 +286,10 @@ class RepoHandler(BaseHandler):
 
         csets = revision_logic.get_csets(repo, key)
         csit = csets.iterator()
+        number_of_csets = revision_logic.get_csets_count(repo, key)
 
         # TODO: Paginate?
+        # TODO Header only request
 
         try:
             first = csit.next()
@@ -301,7 +303,7 @@ class RepoHandler(BaseHandler):
                         self.request.host + self.request.path + "?key=" + key)
         accept = self.request.headers.get("Accept", "")
 
-        if "application/json" in accept or "*/*" in accept:
+        if "application/json" in accept:
             self.set_header("Content-Type", "application/json")
 
             self.write('{"original_uri": ' + json_encode(key))
@@ -319,23 +321,30 @@ class RepoHandler(BaseHandler):
 
             self.write(']}')
             self.write('}')
-        elif "application/link-format" in accept:
+        elif "application/link-format" in accept or "*/*" in accept:
             self.set_header("Content-Type", "application/link-format")
 
             m = (',\n' +
                  '<' + timegate_url + '&datetime={0}>\n' +
-                 '  ; rel="memento"' +
-                 '; datetime="{1}"' +
+                 '  ; rel="memento{1}"' +
+                 '; datetime="{2}"' +
                  '; type="application/n-quads"')
 
             self.write('<' + key + '>\n  ; rel="original"')
             self.write(',\n<' + timemap_url + '>\n  ; rel="self"')
-            self.write(m.format(first.time.strftime(QSDATEFMT),
+            self.write(m.format(first.time.strftime(QSDATEFMT)," last", 
                                 first.time.strftime(RFC1123DATEFMT)))
 
+            count = 0
             for cs in csit:
-                self.write(m.format(cs.time.strftime(QSDATEFMT),
+                # index starts at 0, first element already skipped -> -2
+                if count == number_of_csets - 2:
+                    self.write(m.format(cs.time.strftime(QSDATEFMT)," first",
                                     cs.time.strftime(RFC1123DATEFMT)))
+                else:
+                    self.write(m.format(cs.time.strftime(QSDATEFMT),"",
+                                    cs.time.strftime(RFC1123DATEFMT)))
+                count += 1
         else:
             raise HTTPError(reason="Requested timemap format not supported.", status_code=400)
 

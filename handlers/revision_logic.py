@@ -214,6 +214,9 @@ def get_csets(repo, key):
 
     return csets
 
+def get_csets_count(repo, key):
+    return get_csets(repo, key).count()
+
 def get_cset_at_ts(repo, key, ts):
     sha = __get_shasum(key)
     return __get_cset_at_ts(repo, sha, ts)
