@@ -244,6 +244,24 @@ def __get_cset_next_after_ts(repo, sha, ts):
 
     return cset
 
+def get_cset_prev_before_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_cset_prev_before_ts(repo, sha, ts)
+
+def __get_cset_prev_before_ts(repo, sha, ts):
+    try:
+        cset = (CSet
+                .select(CSet.time, CSet.type)
+                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time < ts))
+                .order_by(CSet.time.desc())
+                .limit(1)
+                .naive()
+                .first())
+    except CSet.DoesNotExist:
+        return None
+
+    return cset
+
 def get_repo_index(repo, ts, page):
     # Subquery for selecting max. time per hkey group
     mx = (CSet

@@ -111,9 +111,32 @@ class RepoHandler(BaseHandler):
             key = self.get_query_argument("key", None)
             index = self.get_query_argument("index", "false") == "true"
 
+            if self.get_query_argument("datetime", None):
+                datestr = self.get_query_argument("datetime")
+                try:
+                    ts = date(datestr, QSDATEFMT)
+                except ValueError:
+                    raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+            elif "Accept-Datetime" in self.request.headers:
+                datestr = self.request.headers.get("Accept-Datetime")
+                ts = date(datestr, RFC1123DATEFMT)
+            else:
+                ts = now()
+
             if key and not timemap:
-                self.render("repo/memento.html", repo=repo, key=key,
-                    datetime=datetime)
+                cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
+                cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
+                if cs_prev:
+                    cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+                else:
+                    cs_prev_str = ""
+                if cs_next:
+                    cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+                else:
+                    cs_next_str = "" 
+                
+
+                self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str)
             elif key and timemap:
                 self.render("repo/history.html", repo=repo, key=key)
             elif index:
@@ -122,17 +145,6 @@ class RepoHandler(BaseHandler):
 
                 page = int(self.get_query_argument("page", "1"))
 
-                if self.get_query_argument("datetime", None):
-                    datestr = self.get_query_argument("datetime")
-                    try:
-                        ts = date(datestr, QSDATEFMT)
-                    except ValueError:
-                        raise HTTPError(reason="Invalid format of datetime param", status_code=400)
-                elif "Accept-Datetime" in self.request.headers:
-                    datestr = self.request.headers.get("Accept-Datetime")
-                    ts = date(datestr, RFC1123DATEFMT)
-                else:
-                    ts = now()
 
                 hm = revision_logic.get_repo_index(repo, ts, page)
 

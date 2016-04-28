@@ -172,6 +172,13 @@ class RepoHandler(BaseHandler):
 
         if key and not timemap and not delta and not delta_ts:
             self.__get_revision(repo, key, ts)
+            # # currently no need to query next and prev through api. Link-Field in Header should contain them
+            # if self.get_query_argument("next", None) == "true":
+            #     self.__get_next_memento(repo,key,ts)
+            # elif self.get_query_argument("prev", None) == "true":
+            #     self.__get_prev_memento(repo,key,ts)
+            # else:
+            #     self.__get_revision(repo, key, ts)
         elif key and timemap:
             self.__get_timemap(repo, key)
         elif key and delta:
@@ -199,13 +206,23 @@ class RepoHandler(BaseHandler):
         timegate_url = (self.request.protocol + "://" +
                         self.request.host + self.request.path) + "?key=" + key
         timemap_url = (self.request.protocol + "://" +
-                       self.request.host + self.request.uri + "&timemap=true")
+                       self.request.host + self.request.path + "?key=" + key + "&timemap=true")
 
-        self.set_header("Link",
-                        '<%s>; rel="original"'
+        link_header = ( '<%s>; rel="original"'
                         ', <%s>; rel="timegate"'
                         ', <%s>; rel="timemap"'
                         % (key, timegate_url, timemap_url))
+
+        cs_prev = self.__get_prev_memento(repo, key, ts)
+        if cs_prev:
+            cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+            link_header += (', <%s>; rel="prev memento"; datetime="%s"' % (cs_prev_str, cs_prev.time.strftime(RFC1123DATEFMT)))
+        cs_next = self.__get_next_memento(repo, key, ts)
+        if cs_next:
+            cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+            link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_str, cs_next.time.strftime(RFC1123DATEFMT)))
+
+        self.set_header("Link", link_header)
 
         self.set_header("Memento-Datetime",
                         chain[-1].time.strftime(RFC1123DATEFMT))
@@ -336,6 +353,22 @@ class RepoHandler(BaseHandler):
         for h in hm:
             self.write(h.val + "\n")
 
+
+    def __get_next_memento(self, repo, key, ts):
+        return revision_logic.get_cset_next_after_ts(repo, key, ts)
+
+        if cs_next:
+            return self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+        else:
+            return None
+
+    def __get_prev_memento(self, repo, key, ts):
+        return revision_logic.get_cset_prev_before_ts(repo, key, ts)
+
+        if cs_prev:
+            return self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+        else:
+            return None
 
     @authenticated
     def put(self, username, reponame):
