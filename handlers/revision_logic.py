@@ -214,6 +214,29 @@ def get_csets(repo, key):
 
     return csets
 
+def get_first_cset_of_repo(repo, key):
+    sha = __get_shasum(key)
+
+    cset = (CSet
+        .select(CSet.time)
+        .where((CSet.repo == repo) & (CSet.hkey == sha))
+        .order_by(CSet.time)
+        .naive()
+        .first())
+    return cset
+
+def get_last_cset_of_repo(repo, key):
+    sha = __get_shasum(key)
+
+    cset = (CSet
+        .select(CSet.time)
+        .where((CSet.repo == repo) & (CSet.hkey == sha))
+        .order_by(CSet.time.desc())
+        .naive()
+        .first())
+    return cset
+
+
 def get_csets_count(repo, key):
     return get_csets(repo, key).count()
 

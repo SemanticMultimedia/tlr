@@ -122,8 +122,10 @@ class RepoHandler(BaseHandler):
                 ts = date(datestr, RFC1123DATEFMT)
             else:
                 ts = now()
-
             if key and not timemap:
+                # use ts of last repo instead of now(), to make prev work
+                ts = revision_logic.get_last_cset_of_repo(repo, key).time
+                
                 cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
                 cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
                 if cs_prev:
@@ -135,7 +137,6 @@ class RepoHandler(BaseHandler):
                 else:
                     cs_next_str = "" 
                 
-
                 self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str)
             elif key and timemap:
                 self.render("repo/history.html", repo=repo, key=key)

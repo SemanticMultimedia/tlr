@@ -134,6 +134,12 @@ class UserHandler(BaseHandler):
 
 class RepoHandler(BaseHandler):
 
+# Memento/Timegate Notes:
+# Header:
+# Vary: accept-datetime --> timegate used content-negotiation
+# timegate-responses contain: original, timemap, from, until, 
+
+
     """Processes repository calls: Push, timegate, memento, timemap etc."""
     def get(self, username, reponame):
         timemap = self.get_query_argument("timemap", "false") == "true"
@@ -199,9 +205,12 @@ class RepoHandler(BaseHandler):
         self.set_header("Vary", "accept-datetime")
 
         chain = revision_logic.get_chain_at_ts(repo, key, ts)
-
         if len(chain) == 0:
             raise HTTPError(reason="Resource not found in repo.", status_code=404)
+
+        # if no datetime given, ts will be now(), therefor cs_prev and cs_next won't work
+        # therefore get time of last cset in chain
+        ts = chain[-1].time
 
         timegate_url = (self.request.protocol + "://" +
                         self.request.host + self.request.path) + "?key=" + key
@@ -215,12 +224,12 @@ class RepoHandler(BaseHandler):
 
         cs_prev = self.__get_prev_memento(repo, key, ts)
         if cs_prev:
-            cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
-            link_header += (', <%s>; rel="prev memento"; datetime="%s"' % (cs_prev_str, cs_prev.time.strftime(RFC1123DATEFMT)))
+            cs_prev_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+            link_header += (', <%s>; rel="prev memento"; datetime="%s"' % (cs_prev_url, cs_prev.time.strftime(RFC1123DATEFMT)))
         cs_next = self.__get_next_memento(repo, key, ts)
         if cs_next:
-            cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
-            link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_str, cs_next.time.strftime(RFC1123DATEFMT)))
+            cs_next_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+            link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_url, cs_next.time.strftime(RFC1123DATEFMT)))
 
         self.set_header("Link", link_header)
 
@@ -292,7 +301,7 @@ class RepoHandler(BaseHandler):
         # TODO Header only request
 
         try:
-            first = csit.next()
+            last_cset = csit.next()
         except StopIteration:
             # Resource for given key does not exist.
             raise HTTPError(reason="Resource not found in repo.", status_code=404)
@@ -303,17 +312,18 @@ class RepoHandler(BaseHandler):
                         self.request.host + self.request.path + "?key=" + key)
         accept = self.request.headers.get("Accept", "")
 
-        if "application/json" in accept:
+        if "application/json" in accept or "*/*" in accept:
             self.set_header("Content-Type", "application/json")
 
             self.write('{"original_uri": ' + json_encode(key))
+            self.write(', "timemap_uri": "' + timemap_url + '"')
             self.write(', "mementos": {"list":[')
 
             m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
                  '&datetime={1}"}}')
 
-            self.write(m.format(first.time.isoformat(),
-                                first.time.strftime(QSDATEFMT)))
+            self.write(m.format(last_cset.time.isoformat(),
+                                last_cset.time.strftime(QSDATEFMT)))
 
             for cs in csit:
                 self.write(', ' + m.format(cs.time.isoformat(),
@@ -321,7 +331,7 @@ class RepoHandler(BaseHandler):
 
             self.write(']}')
             self.write('}')
-        elif "application/link-format" in accept or "*/*" in accept:
+        elif "application/link-format" in accept:
             self.set_header("Content-Type", "application/link-format")
 
             m = (',\n' +
@@ -332,8 +342,9 @@ class RepoHandler(BaseHandler):
 
             self.write('<' + key + '>\n  ; rel="original"')
             self.write(',\n<' + timemap_url + '>\n  ; rel="self"')
-            self.write(m.format(first.time.strftime(QSDATEFMT)," last", 
-                                first.time.strftime(RFC1123DATEFMT)))
+            self.write(',\n<' + timegate_url + '>\n  ; rel="timegate"')
+            self.write(m.format(last_cset.time.strftime(QSDATEFMT)," last", 
+                                last_cset.time.strftime(RFC1123DATEFMT)))
 
             count = 0
             for cs in csit:
@@ -366,18 +377,24 @@ class RepoHandler(BaseHandler):
     def __get_next_memento(self, repo, key, ts):
         return revision_logic.get_cset_next_after_ts(repo, key, ts)
 
+    def __get_next_memento_uri(self, repo, key, ts):
+        cs_next = __get_next_memento(repo, key, ts)
         if cs_next:
             return self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
         else:
             return None
 
+
     def __get_prev_memento(self, repo, key, ts):
         return revision_logic.get_cset_prev_before_ts(repo, key, ts)
 
+    def __get_prev_memento_uri(self, repo, key, ts):
+        cs_prev = __get_prev_memento(repo, key, ts)
         if cs_prev:
             return self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
         else:
             return None
+
 
     @authenticated
     def put(self, username, reponame):
