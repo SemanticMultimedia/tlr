@@ -196,12 +196,13 @@ class RepoHandler(BaseHandler):
         else:
             raise HTTPError(reason="Missing arguments.", status_code=400)
 
-    def __get_revision(self, repo, key, ts):
+    def __get_revision(self, repo, key, ts, header_only=False):
         # Recreate the resource for the given key
         # - in its latest state (if no `datetime` was provided) or
         # - in the state it was in at the time indicated by the passed `datetime` argument.
 
-        self.set_header("Content-Type", "application/n-quads")
+        if not header_only:
+            self.set_header("Content-Type", "application/n-quads")
         self.set_header("Vary", "accept-datetime")
 
         chain = revision_logic.get_chain_at_ts(repo, key, ts)
@@ -231,19 +232,22 @@ class RepoHandler(BaseHandler):
             cs_next_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
             link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_url, cs_next.time.strftime(RFC1123DATEFMT)))
 
-        self.set_header("Link", link_header)
-
         self.set_header("Memento-Datetime",
                         chain[-1].time.strftime(RFC1123DATEFMT))
 
-        if chain[0].type == CSet.DELETE:
-            # The last change was a delete. Return a 404 response with
-            # appropriate "Link" and "Memento-Datetime" headers.
-            raise HTTPError(reason="Resource does not exist at that time (has been deleted).", status_code=404)
+        self.set_header("Link", link_header)
 
-        stmts = revision_logic.get_revision(repo, key, chain)
+        if not header_only:
+            if chain[0].type == CSet.DELETE:
+                # The last change was a delete. Return a 404 response with
+                # appropriate "Link" and "Memento-Datetime" headers.
+                raise HTTPError(reason="Resource does not exist at that time (has been deleted).", status_code=404)
 
-        self.write(join(stmts, "\n"))
+            stmts = revision_logic.get_revision(repo, key, chain)
+
+            self.write(join(stmts, "\n"))
+        else:
+            pass
 
 
     def __get_delta_of_memento(self, repo, key, ts):
@@ -288,76 +292,79 @@ class RepoHandler(BaseHandler):
         self.write("\n")
         self.write(join(deleted, "\n"))
 
-    def __get_timemap(self, repo, key):
-        # Generate a timemap containing historic change information
-        # for the requested key. The timemap is in the default link-format
-        # or as JSON (http://mementoweb.org/guide/timemap-json/).
+    def __get_timemap(self, repo, key, header_only=False):
+        if not header_only:
+            # Generate a timemap containing historic change information
+            # for the requested key. The timemap is in the default link-format
+            # or as JSON (http://mementoweb.org/guide/timemap-json/).
 
-        csets = revision_logic.get_csets(repo, key)
-        csit = csets.iterator()
-        number_of_csets = revision_logic.get_csets_count(repo, key)
+            csets = revision_logic.get_csets(repo, key)
+            csit = csets.iterator()
+            number_of_csets = revision_logic.get_csets_count(repo, key)
 
-        # TODO: Paginate?
-        # TODO Header only request
+            # TODO: Paginate?
+            # TODO Header only request
 
-        try:
-            last_cset = csit.next()
-        except StopIteration:
-            # Resource for given key does not exist.
-            raise HTTPError(reason="Resource not found in repo.", status_code=404)
+            try:
+                last_cset = csit.next()
+            except StopIteration:
+                # Resource for given key does not exist.
+                raise HTTPError(reason="Resource not found in repo.", status_code=404)
 
-        timemap_url = (self.request.protocol + "://" +
-                       self.request.host + self.request.uri)
-        timegate_url = (self.request.protocol + "://" +
-                        self.request.host + self.request.path + "?key=" + key)
-        accept = self.request.headers.get("Accept", "")
+            timemap_url = (self.request.protocol + "://" +
+                           self.request.host + self.request.uri)
+            timegate_url = (self.request.protocol + "://" +
+                            self.request.host + self.request.path + "?key=" + key)
+            accept = self.request.headers.get("Accept", "")
 
-        if "application/json" in accept or "*/*" in accept:
-            self.set_header("Content-Type", "application/json")
+            if "application/json" in accept or "*/*" in accept:
+                self.set_header("Content-Type", "application/json")
 
-            self.write('{"original_uri": ' + json_encode(key))
-            self.write(', "timemap_uri": "' + timemap_url + '"')
-            self.write(', "mementos": {"list":[')
+                self.write('{"original_uri": ' + json_encode(key))
+                self.write(', "timegate_uri": "' + timegate_url + '"')
+                self.write(', "timemap_uri": "' + timemap_url + '"')
 
-            m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
-                 '&datetime={1}"}}')
+                self.write(', "mementos": {"list":[')
 
-            self.write(m.format(last_cset.time.isoformat(),
-                                last_cset.time.strftime(QSDATEFMT)))
+                m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
+                     '&datetime={1}"}}')
 
-            for cs in csit:
-                self.write(', ' + m.format(cs.time.isoformat(),
-                                           cs.time.strftime(QSDATEFMT)))
+                self.write(m.format(last_cset.time.isoformat(),
+                                    last_cset.time.strftime(QSDATEFMT)))
 
-            self.write(']}')
-            self.write('}')
-        elif "application/link-format" in accept:
-            self.set_header("Content-Type", "application/link-format")
+                for cs in csit:
+                    self.write(', ' + m.format(cs.time.isoformat(),
+                                               cs.time.strftime(QSDATEFMT)))
 
-            m = (',\n' +
-                 '<' + timegate_url + '&datetime={0}>\n' +
-                 '  ; rel="memento{1}"' +
-                 '; datetime="{2}"' +
-                 '; type="application/n-quads"')
+                self.write(']}')
+                self.write('}')
+            elif "application/link-format" in accept:
+                self.set_header("Content-Type", "application/link-format")
 
-            self.write('<' + key + '>\n  ; rel="original"')
-            self.write(',\n<' + timemap_url + '>\n  ; rel="self"')
-            self.write(',\n<' + timegate_url + '>\n  ; rel="timegate"')
-            self.write(m.format(last_cset.time.strftime(QSDATEFMT)," last", 
-                                last_cset.time.strftime(RFC1123DATEFMT)))
+                m = (',\n' +
+                     '<' + timegate_url + '&datetime={0}>\n' +
+                     '  ; rel="memento{1}"' +
+                     '; datetime="{2}"' +
+                     '; type="application/n-quads"')
 
-            count = 0
-            for cs in csit:
-                # index starts at 0, first element already skipped -> -2
-                if count == number_of_csets - 2:
-                    self.write(m.format(cs.time.strftime(QSDATEFMT)," first",
-                                    cs.time.strftime(RFC1123DATEFMT)))
-                else:
-                    self.write(m.format(cs.time.strftime(QSDATEFMT),"",
-                                    cs.time.strftime(RFC1123DATEFMT)))
-                count += 1
-        else:
-            raise HTTPError(reason="Requested timemap format not supported.", status_code=400)
+                self.write('<' + key + '>\n  ; rel="original"')
+                self.write(',\n<' + timemap_url + '>\n  ; rel="self"')
+                self.write(',\n<' + timegate_url + '>\n  ; rel="timegate"')
+                self.write(m.format(last_cset.time.strftime(QSDATEFMT)," last", 
+                                    last_cset.time.strftime(RFC1123DATEFMT)))
+
+                count = 0
+                for cs in csit:
+                    # index starts at 0, first element already skipped -> -2
+                    if count == number_of_csets - 2:
+                        self.write(m.format(cs.time.strftime(QSDATEFMT)," first",
+                                        cs.time.strftime(RFC1123DATEFMT)))
+                    else:
+                        self.write(m.format(cs.time.strftime(QSDATEFMT),"",
+                                        cs.time.strftime(RFC1123DATEFMT)))
+                    count += 1
+            else:
+                raise HTTPError(reason="Requested timemap format not supported.", status_code=400)
 
     def __get_index(self, repo, ts):
         # Generate an index of all URIs contained in the dataset at the
@@ -437,6 +444,41 @@ class RepoHandler(BaseHandler):
 
             
         # def setHeader(self, key, timemap):
+
+    def head(self, username, reponame):
+    
+        timemap = self.get_query_argument("timemap", "false") == "true"
+        index = self.get_query_argument("index", "false") == "true"
+        key = self.get_query_argument("key", None)
+    
+        if (index and timemap) or (index and key) or (timemap and not key):
+            raise HTTPError(reason="Invalid arguments.", status_code=400)
+
+        if self.get_query_argument("datetime", None):
+            datestr = self.get_query_argument("datetime")
+            try:
+                ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+        elif "Accept-Datetime" in self.request.headers:
+            datestr = self.request.headers.get("Accept-Datetime")
+            ts = date(datestr, RFC1123DATEFMT)
+        else:
+            ts = now()
+
+        #load repo
+        repo = revision_logic.get_repo(username, reponame)
+        if repo == None:
+            raise HTTPError(reason="Repo not found.", status_code=404)
+
+
+        if key and not timemap:
+            self.__get_revision(repo, key, ts, True)
+        elif key and timemap:
+            self.__get_timemap(repo, key, True)
+        else:
+            raise HTTPError(reason="Malformed HEAD request.", status_code=400)
+
     #
     #     if key and not timemap:
     #         self.set_header("Content-Type", "application/n-quads")

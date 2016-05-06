@@ -123,9 +123,11 @@ class RepoHandler(BaseHandler):
             else:
                 ts = now()
             if key and not timemap:
-                # use ts of last repo instead of now(), to make prev work
-                ts = revision_logic.get_last_cset_of_repo(repo, key).time
-                
+                chain = revision_logic.get_chain_at_ts(repo, key, ts)
+                # use ts of cset instead of now(), to make prev work
+                if len(chain) != 0:
+                    ts = chain[-1].time
+
                 cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
                 cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
                 if cs_prev:

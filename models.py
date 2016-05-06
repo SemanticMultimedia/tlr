@@ -1,5 +1,6 @@
 from peewee import *
 from database import *
+import datetime
 
 dbproxy = Proxy()
 
@@ -44,6 +45,7 @@ class CSet(Base):
     time = MSQLTimestampField(precision=0, null=False)
     type = MSQLTinyIntegerField(unsigned=True, null=False)
     len  = MSQLMediumIntegerField(unsigned=True, null=False)
+    # created_at = DateTimeField(default=datetime.datetime.now)
     # base = MSQLTimestampField(precision=3, null=False)
 
     class Meta:
