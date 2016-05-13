@@ -223,14 +223,40 @@ class RepoHandler(BaseHandler):
                         ', <%s>; rel="timemap"'
                         % (key, timegate_url, timemap_url))
 
-        cs_prev = self.__get_prev_memento(repo, key, ts)
-        if cs_prev:
-            cs_prev_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
-            link_header += (', <%s>; rel="prev memento"; datetime="%s"' % (cs_prev_url, cs_prev.time.strftime(RFC1123DATEFMT)))
-        cs_next = self.__get_next_memento(repo, key, ts)
-        if cs_next:
-            cs_next_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
-            link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_url, cs_next.time.strftime(RFC1123DATEFMT)))
+        cs_first = revision_logic.get_first_cset_of_repo(repo, key)
+        cs_last = revision_logic.get_last_cset_of_repo(repo, key)
+        cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
+        cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
+
+        cs_first_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_first.time.strftime(QSDATEFMT)
+
+        if cs_first.time == cs_last.time:
+            # only one CSet
+            link_header += (', <%s>; rel="first last memento"; datetime="%s"' % (cs_first_url, cs_first.time.strftime(RFC1123DATEFMT)))
+        else:
+            # more than one CSet --> first != last
+            cs_last_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_last.time.strftime(QSDATEFMT)
+
+            if cs_prev:
+                cs_prev_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+                if cs_prev.time == cs_first.time:
+                    link_header += (', <%s>; rel="prev first memento"; datetime="%s"' % (cs_prev_url, cs_prev.time.strftime(RFC1123DATEFMT)))
+                else:
+                    link_header += (', <%s>; rel="first memento"; datetime="%s"' % (cs_first_url, cs_first.time.strftime(RFC1123DATEFMT)))
+                    link_header += (', <%s>; rel="prev memento"; datetime="%s"' % (cs_prev_url, cs_prev.time.strftime(RFC1123DATEFMT)))
+            else: 
+                link_header += (', <%s>; rel="first memento"; datetime="%s"' % (cs_first_url, cs_first.time.strftime(RFC1123DATEFMT)))
+
+            if cs_next:
+                cs_next_url = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+                if cs_next.time == cs_last.time:
+                    link_header += (', <%s>; rel="next last memento"; datetime="%s"' % (cs_next_url, cs_next.time.strftime(RFC1123DATEFMT)))
+                else:
+                    link_header += (', <%s>; rel="next memento"; datetime="%s"' % (cs_next_url, cs_next.time.strftime(RFC1123DATEFMT)))
+                    link_header += (', <%s>; rel="last memento"; datetime="%s"' % (cs_last_url, cs_last.time.strftime(RFC1123DATEFMT)))
+            else:
+                link_header += (', <%s>; rel="last memento"; datetime="%s"' % (cs_last_url, cs_last.time.strftime(RFC1123DATEFMT)))
+
 
         self.set_header("Memento-Datetime",
                         chain[-1].time.strftime(RFC1123DATEFMT))
@@ -246,8 +272,6 @@ class RepoHandler(BaseHandler):
             stmts = revision_logic.get_revision(repo, key, chain)
 
             self.write(join(stmts, "\n"))
-        else:
-            pass
 
 
     def __get_delta_of_memento(self, repo, key, ts):
