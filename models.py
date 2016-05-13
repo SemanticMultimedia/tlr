@@ -57,6 +57,15 @@ class CSet(Base):
 
 # TODO: Store blobs in a dedicated blobstore? (benchmark)
 
+class CommitMessage(Base):
+    repo = ForeignKeyField(Repo, related_name="commitMessages", null=False)
+    hkey = ForeignKeyField(HMap, null=False)
+    time = MSQLTimestampField(precision=0, null=False)
+    message = CharField(max_length=512)
+
+    class Meta:
+        primary_key = CompositeKey("repo", "hkey", "time")
+
 class Blob(Base):
     repo = ForeignKeyField(Repo, related_name="blobs", null=False)
     hkey = ForeignKeyField(HMap, null=False)

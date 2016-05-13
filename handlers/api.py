@@ -432,6 +432,7 @@ class RepoHandler(BaseHandler):
         # Create a new revision of the resource specified by `key`.
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
+        commit_message = self.get_query_argument("m", None)
         # force = self.get_query_argument("force", None)
         # replace = self.get_query_argument("replace", None)
 
@@ -462,7 +463,9 @@ class RepoHandler(BaseHandler):
             raise HTTPError(reason="Error while saving revision.", status_code=500)
         except IntegrityError:
             raise HTTPError(500)
-
+        else:
+            if commit_message:
+                revision_logic.add_commit_message(repo, key, ts, commit_message)
         if prev_state == None:
             self.finish()
 

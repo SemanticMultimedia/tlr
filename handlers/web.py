@@ -139,7 +139,9 @@ class RepoHandler(BaseHandler):
                 else:
                     cs_next_str = "" 
                 
-                self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str)
+                commit_message = revision_logic.get_commit_message(repo, key, ts)
+
+                self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str, commit_message=commit_message)
             elif key and timemap:
                 self.render("repo/history.html", repo=repo, key=key)
             elif index:

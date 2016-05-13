@@ -2,7 +2,7 @@ import hashlib
 import zlib
 import string
 
-from models import User, Token, Repo, HMap, CSet, Blob
+from models import User, Token, Repo, HMap, CSet, Blob, CommitMessage
 from peewee import IntegrityError, SQL, fn
 import RDF
 import datetime
@@ -441,14 +441,14 @@ def __insert_revision(repo, key, sha, stmts, ts):
         
         chain_current = __get_chain_at_ts(repo, sha, ts)
         # save inserted revision
-        __save_revision(repo, sha, chain_current, stmts, ts)
+        return __save_revision(repo, sha, chain_current, stmts, ts)
 
         if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
             # delete next revision
             __remove_cset(repo, sha, cset_next.time)
             # reconstruct next revision
             chain = __get_chain_at_ts(repo, sha, cset_next.time)
-            __save_revision(repo, sha, chain, stmts_next, cset_next.time)
+            return __save_revision(repo, sha, chain, stmts_next, cset_next.time)
     else:
         if __get_cset_at_ts(repo, sha, ts):
             # check if there is a revision at this ts, which is the latest one. 
@@ -465,8 +465,29 @@ def __insert_revision(repo, key, sha, stmts, ts):
                 raise IntegrityError
 
         # If there is no cset following, just save the new statements
-        __save_revision(repo, sha, chain_current, stmts, ts)
+        return __save_revision(repo, sha, chain_current, stmts, ts)
 
+
+def add_commit_message(repo, key, ts, message):
+    sha = __get_shasum(key)
+    return __add_commit_message(repo, sha, ts, message)
+
+def __add_commit_message(repo, sha, ts, message):
+
+    # TODO sanitize message
+
+    CommitMessage.create(repo=repo, hkey=sha, time=ts, message=message)
+
+def get_commit_message(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_commit_message(repo, sha, ts)
+
+def __get_commit_message(repo, sha, ts):
+    try:
+        commit_message = CommitMessage.get(CommitMessage.repo == repo, CommitMessage.hkey == sha, CommitMessage.time == ts)
+    except CommitMessage.DoesNotExist:
+        return None
+    return commit_message.message
 
 # Whether replacement is needed is checked in __insert_revision() so
 # this one is not used right now but could become handy in the future
