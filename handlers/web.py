@@ -138,7 +138,6 @@ class RepoHandler(BaseHandler):
                     cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
                 else:
                     cs_next_str = "" 
-                
                 commit_message = revision_logic.get_commit_message(repo, key, ts)
 
                 self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str, commit_message=commit_message)

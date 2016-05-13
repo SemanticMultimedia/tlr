@@ -465,7 +465,7 @@ class RepoHandler(BaseHandler):
             raise HTTPError(500)
         else:
             if commit_message:
-                revision_logic.add_commit_message(repo, key, ts, commit_message)
+                revision_logic.add_commit_message(repo, key, ts, commit_message.replace('\n', '. ').replace('\r', '. '))
         if prev_state == None:
             self.finish()
 
