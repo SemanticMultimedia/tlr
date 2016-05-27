@@ -3,7 +3,7 @@ import zlib
 import string
 
 from models import User, Token, Repo, HMap, CSet, Blob, CommitMessage
-from peewee import IntegrityError, SQL, fn, JOIN
+from peewee import IntegrityError, SQL, fn
 import RDF
 import datetime
 

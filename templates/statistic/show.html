@@ -1,0 +1,22 @@
+{% extends "../base.html" %}
+
+{% block content %}
+<div class="tlr-tease">
+  <!-- <form class="form-inline" action="{{ reverse_url("web:search") }}" method="get">
+    <input class="form-control input-lg search-input" type="text" name="q" tabindex="1" placeholder="Search users and repositories">
+  </form> -->
+  <span class="mega-octicon octicon-graph"></span>
+  <div class="stats">
+    <!-- TODO: Rotate stats?  -->
+    <p class="stat fade in">
+      <span class="counter">{{ usercount }}</span> Users
+    </p>
+    <p class="stat fade in"><span class="counter">{{ repocount }}</span> repositories created</p>
+    <p class="stat fade in"><span class="counter">{{ resourcecount }}</span> resources versioned</p>
+    <p class="stat fade in">
+      <span class="counter">{{ revisioncount }}</span> revisions stored
+    
+    </p> 
+  </div>
+</div>
+{% end %}

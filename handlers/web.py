@@ -20,6 +20,7 @@ from peewee import fn
 from models import User, Repo, HMap, CSet, Token
 from handlers import RequestHandler
 import revision_logic
+import statistic
 
 logger = logging.getLogger('debug')
 
@@ -57,6 +58,10 @@ class HomeHandler(BaseHandler):
 
     def get(self):
         self.render("home/index.html")
+
+class AboutHandler(BaseHandler):
+    def get(self):
+        self.render("home/about.html")
 
 class SearchHandler(BaseHandler):
     def get(self):
@@ -97,6 +102,19 @@ class EditUserHandler(BaseHandler):
         user.email = self.get_argument("email", None)
         user.save()
         self.redirect(self.reverse_url("web:settings"))
+
+class StatisticHandler(BaseHandler):
+    def get(self):
+        usercount = statistic.get_user_count()
+        if "users" in self.request.path:
+            page = int(self.get_query_argument("page", "1"))
+            users = statistic.get_all_users(page)
+            self.render("statistic/users.html", title="All Users", users=users, usercount=usercount, page_size=statistic.INDEX_PAGE_SIZE, current_page=page)
+        else:
+            repocount = statistic.get_repo_count()
+            resourcecount = statistic.get_resource_count()
+            revisioncount = statistic.get_revision_count()
+            self.render("statistic/show.html", title="tailr - Statistics", usercount=usercount, repocount=repocount, resourcecount=resourcecount, revisioncount=revisioncount)
 
 class RepoHandler(BaseHandler):
     def get(self, username, reponame):

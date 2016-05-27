@@ -228,8 +228,8 @@ pre > code {
 /* homepage */
 
 .tlr-tease {
-  margin-bottom: 180px;
-  margin-top: 90px;
+  margin-bottom: 20px;
+  margin-top: 20px;
   text-align: center;
 }
 
@@ -253,7 +253,13 @@ pre > code {
 
 .tlr-tease .counter {
   font-weight: 400;
+  /*font-size: 4em;*/
+  /*line-height: 100%;*/
   color: #454545;
+}
+
+.tlr-tease .stat-link {
+  padding-left:3em;
 }
 
 @media (max-width: 490px) {
