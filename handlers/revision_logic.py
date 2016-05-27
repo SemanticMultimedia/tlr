@@ -3,7 +3,7 @@ import zlib
 import string
 
 from models import User, Token, Repo, HMap, CSet, Blob, CommitMessage
-from peewee import IntegrityError, SQL, fn
+from peewee import IntegrityError, SQL, fn, JOIN
 import RDF
 import datetime
 
@@ -288,7 +288,7 @@ def __get_cset_prev_before_ts(repo, sha, ts):
 
     return cset
 
-def get_repo_index(repo, ts, page):
+def get_repo_index(repo, ts, page, limit=None):
     # Subquery for selecting max. time per hkey group
     mx = (CSet
         .select(CSet.hkey, fn.Max(CSet.time).alias("maxtime"))
@@ -299,21 +299,36 @@ def get_repo_index(repo, ts, page):
         .alias("mx"))
 
     # Query for all the relevant csets (those with max. time values)
-    cs = (CSet
-        .select(CSet.hkey, CSet.time)
-        .join(mx, on=(
-            (CSet.hkey == mx.c.hkey_id) &
-            (CSet.time == mx.c.maxtime)))
-        .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
-        .alias("cs"))
-
+    if not limit:
+        cs = (CSet
+            .select(CSet.hkey, CSet.time)
+            .join(mx, on=(
+                (CSet.hkey == mx.c.hkey_id) &
+                (CSet.time == mx.c.maxtime)))
+            .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
+            .alias("cs")
+            .naive())
+    else:
+        cs = (CSet
+            .select(CSet.hkey, CSet.time)
+            .join(mx, on=(
+                (CSet.hkey == mx.c.hkey_id) &
+                (CSet.time == mx.c.maxtime)))
+            .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
+            .limit(limit)
+            .alias("cs")
+            .naive())
+        
     # Join with the hmap table to retrieve the plain key values
     hm = (HMap
-        .select(HMap.val)
+        .select(HMap.val, cs.c.time)
         .join(cs, on=(HMap.sha == cs.c.hkey_id))
         .naive())
 
-    return hm.iterator()    
+    return hm.iterator()
+
+# def get_repo_index(repo):
+#     pass
 
 # Is Obsolete. insert_revision() now handles saving revisions (at any time)
 # __save_revision() saves revisions with any chain. 

@@ -151,12 +151,13 @@ class RepoHandler(BaseHandler):
 
 
                 hm = revision_logic.get_repo_index(repo, ts, page)
-
+                
                 self.render("repo/index.html", repo=repo, title=title, key_count=key_count, page_size=revision_logic.INDEX_PAGE_SIZE, hm=hm, current_page=page)
             else:
-                cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).limit(5).alias("cs"))
-                samples = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id)))
-                self.render("repo/show.html", title=title, repo=repo, samples=list(samples))
+                hm = list(revision_logic.get_repo_index(repo, ts, 1, 5))
+                # cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).limit(5).alias("cs"))
+                # samples = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id)))
+                self.render("repo/show.html", title=title, repo=repo, hm=hm)
         except Repo.DoesNotExist:
             raise HTTPError(reason="Repo not found.", status_code=404)
 
@@ -178,7 +179,6 @@ class RepoHandler(BaseHandler):
         ts = date(datestr, QSDATEFMT) or now()
         
         if update:
-            logger.info("was in update of web delete")
             # When update-param is set and the ts is the exact one of an existing cset (ts does not need to be increasing)
             if revision_logic.get_cset_at_ts(repo, key, ts):
                 revision_logic.remove_revision(repo, key, ts)

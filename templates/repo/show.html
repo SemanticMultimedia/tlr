@@ -86,18 +86,18 @@ curl -X DELETE \
         <pre><code class="bash">curl "{{ api_url }}?key=http://...&datetime=2015-06-11-09:45:00"</code></pre>
         <p>To find out when a resource was changed, query for the timemap:</p>
         <pre><code class="bash">curl "{{ api_url }}?key=http://...&timemap=true"</code></pre>
-        {% if len(samples) > 0 %}
+        {% if len(hm) > 0 %}
         <p>You can find links to a small sample of resources from this repository below:</p>
         {% else %}
         <p><small><strong>This repository is still empty.</strong></small></p>
         {% end %}
       </div>
 
-      {% if len(samples) > 0 %}
+      {% if len(hm) > 0 %}
       <ul class="list-group">
-        {% for s in samples %}
-        <li class="list-group-item"><a href="{{ base_url + "?key=" + s.val + "&timemap=true" }}">{{ s.val }}</a></li>
-        {% end %}
+        {% for h in hm %}
+            <div class="list-group-item"><a href="{{ base_url + "?key=" + h.val + "&timemap=true" }}">{{ h.val }}</a><span class="pull-right text-muted memento-infos timestamp">{{ h.time}}</span></div>
+          {% end %}
         <li class="list-group-item" style="background: #F5F5F5;"><a class="btn btn-default" href="{{ base_url + "?index=true" }}">Show All</a></li>
       </ul>
       {% end %}
@@ -139,7 +139,15 @@ curl -X DELETE \
 {% end %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/momentjs/2.10.3/moment.min.js"></script>
 <script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/languages/bash.min.js"></script>
 <script>hljs.initHighlightingOnLoad();</script>
+<script type="text/javascript">
+  var timestamps = document.getElementsByClassName("timestamp");
+  [].map.call(timestamps, function (ts) {
+    mmt = moment(ts.innerHTML)
+    ts.innerHTML = mmt.fromNow();
+  });
+</script>
 {% end %}

@@ -68,11 +68,11 @@
 	<div class="col-sm-10 col-sm-offset-1">
 		<div class="panel panel-default panel-content">
 	      <div class="panel-heading">Keys</div>
-	  		<ul class="list-group">
+	  		<div class="list-group">
 	        {% for h in hm %}
-	        	<li class="list-group-item"><a href="{{ base_url + "?key=" + h.val + "&timemap=true" }}">{{ h.val }}</a></li>
+	        	<div class="list-group-item"><a href="{{ base_url + "?key=" + h.val + "&timemap=true" }}">{{ h.val }}</a><span class="pull-right text-muted memento-infos timestamp">{{ h.time}}</span></div>
 	        {% end %}
-	      	</ul>
+	      	</div>
 	      </div>
 	    </div>
 	</div>
@@ -81,10 +81,18 @@
 
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/momentjs/2.10.3/moment.min.js"></script>
 <script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/highlight.js/8.6.0/languages/bash.min.js"></script>
 <script>hljs.initHighlightingOnLoad();</script>
 <script type="text/javascript">
 	$( ".pagination-row" ).clone().insertAfter( ".panel-content" );
+</script>
+<script type="text/javascript">
+	var timestamps = document.getElementsByClassName("timestamp");
+	[].map.call(timestamps, function (ts) {
+		mmt = moment(ts.innerHTML)
+		ts.innerHTML = mmt.fromNow();
+	});
 </script>
 {% end %}
