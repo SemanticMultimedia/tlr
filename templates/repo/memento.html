@@ -17,6 +17,16 @@
 </div>
 
 <div class="row">
+  <div class="col-sm-10 col-sm-offset-1">
+    <nav>
+      <ul class="pager">
+        <li class="previous {% if not cs_prev_str %} disabled{% end %}"><a href="{{ cs_prev_str }}"><span aria-hidden="true">&larr;</span> Previous Revision</a></li>
+        <li class="next {% if not cs_next_str %} disabled{% end %}"><a href="{{ cs_next_str }}">Next Revision <span aria-hidden="true">&rarr;</span></a></li>
+      </ul>
+    </nav>
+  </div>
+</div>
+<div class="row">
   <div class="col-sm-10 col-sm-offset-1" id="mm-target">
     <div class="sk-spinner sk-spinner-double-bounce repo-spinner">
       <div class="sk-double-bounce1"></div>
@@ -37,29 +47,38 @@
 <!-- <script src="{{ static_url("javascripts/nquads.js") }}"></script> -->
 
 {% set api_url = request.protocol + "://" + request.host + "/api" + request.path %}
+{% set web_url = request.protocol + "://" + request.host + request.path %}
 <script>
-  $(function () {
-    $.get('{{ api_url }}?key={{ key }}{% if datetime %}&datetime={{ datetime }}{% end %}', function (res) {
-      var $viewer, $pre, $code, isodate, mmt;
+  $.ajax({
+    url: '{{ api_url }}?key={{ key }}{% if datetime %}&datetime={{ datetime }}{% end %}',
+    success: function(data, textStatus, response) {
+        var $viewer, $pre, $code, isodate, mmt;
 
-      isodate = '{{ datetime }}';
-      isodate = isodate.substr(0, 10) + ' ' + isodate.substr(11);
-      mmt = moment(isodate);
+        isodate = '{{ datetime }}';
+        isodate = isodate.substr(0, 10) + ' ' + isodate.substr(11);
+        mmt = moment(isodate);
 
-      $viewer = $('<div class="panel panel-default"><div class="panel-heading"><h4 class="panel-title">{{ key }}</h4></div></div>');
-      $viewer.append('<div class="panel-body"><small>on ' + mmt.format('LLL') + '<span class="pull-right text-muted">' + mmt.fromNow() + '</span></small></div>');
-      $code = $('<code></code>');
-      $code.text(res.split('\n').sort().join('\n'));
+        $viewer = $('<div class="panel panel-default"><div class="panel-heading"><a href="{{ web_url }}?key={{ key }}&timemap=true"><h4 class="panel-title">{{ key }}</h4></a></div></div>');
+        $viewer.append('<div class="panel-body"><small>on ' + mmt.format('LLL') + '<span class="pull-right text-muted">' + mmt.fromNow() + '</span></small>{% if commit_message %}<div class="commit-message"><i>{{ commit_message }}</i></div>{% end %}</div>');
+        $code = $('<code></code>');
+        $code.text(data.split('\n').sort().join('\n'));
 
-      $pre = $('<pre class="nq-view"></pre>');
-      $pre.append($code);
+        $pre = $('<pre class="nq-view"></pre>');
+        $pre.append($code);
 
-      $viewer.append($pre);
-      $('#mm-target').html($viewer);
-    });
+        $viewer.append($pre);
+        $('#mm-target').html($viewer);
+      },
+    error: function(xhr, ajaxOptions, thrownError) {
+      if(xhr.status==404) {
+        $viewer = $('<div class="panel panel-default"><div class="panel-heading"><a href="{{ web_url }}?key={{ key }}&timemap=true"><h4 class="panel-title">{{ key }}</h4></a></div></div>');
+        $viewer.append('<div class="panel-body"><h4>404</h4><p>'+thrownError+'</p></div>');
+        $('#mm-target').html($viewer);
+      }
+    }
   });
 
-    $(function () {
+  $(function () {
     $.get('{{ api_url }}?key={{ key }}{% if datetime %}&datetime={{ datetime }}{% end %}&delta=true', function (res) {
       var $viewer, $pre, $code, isodate, mmt;
 
@@ -68,15 +87,29 @@
       mmt = moment(isodate);
 
       $viewer = $('<div class="panel panel-default"><div class="panel-heading"><h4 class="panel-title">Changed Triples</h4></div></div>');
+      $viewer.append('<div class="panel-body"><button id="changesTriggerButton" type="button" onclick="ShowOrHideChanges()" class="btn btn-primary btn-sm">Show Changes</button></div>');
       $code = $('<code></code>');
       $code.text(res.split('\n').sort().join('\n'));
 
-      $pre = $('<pre class="nq-view"></pre>');
+      $pre = $('<pre id="changesPre" class="nq-view" style="display: none;"></pre>');
       $pre.append($code);
 
       $viewer.append($pre);
       $('#mm-changed').html($viewer);
     });
   });
+
+  function ShowOrHideChanges() {
+    var pre = document.getElementById("changesPre");
+    var button = document.getElementById("changesTriggerButton");
+    if (pre.style.display == "none") {
+      pre.style.display = "block";
+      button.innerHTML = "Hide Changes"
+
+    } else {
+      pre.style.display = "none";
+      button.innerHTML = "Show Changes"
+    }
+  }
 </script>
 {% end %}

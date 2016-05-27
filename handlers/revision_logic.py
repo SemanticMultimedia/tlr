@@ -2,7 +2,7 @@ import hashlib
 import zlib
 import string
 
-from models import User, Token, Repo, HMap, CSet, Blob
+from models import User, Token, Repo, HMap, CSet, Blob, CommitMessage
 from peewee import IntegrityError, SQL, fn
 import RDF
 import datetime
@@ -214,6 +214,32 @@ def get_csets(repo, key):
 
     return csets
 
+def get_first_cset_of_repo(repo, key):
+    sha = __get_shasum(key)
+
+    cset = (CSet
+        .select(CSet.time)
+        .where((CSet.repo == repo) & (CSet.hkey == sha))
+        .order_by(CSet.time)
+        .naive()
+        .first())
+    return cset
+
+def get_last_cset_of_repo(repo, key):
+    sha = __get_shasum(key)
+
+    cset = (CSet
+        .select(CSet.time)
+        .where((CSet.repo == repo) & (CSet.hkey == sha))
+        .order_by(CSet.time.desc())
+        .naive()
+        .first())
+    return cset
+
+
+def get_csets_count(repo, key):
+    return get_csets(repo, key).count()
+
 def get_cset_at_ts(repo, key, ts):
     sha = __get_shasum(key)
     return __get_cset_at_ts(repo, sha, ts)
@@ -244,7 +270,25 @@ def __get_cset_next_after_ts(repo, sha, ts):
 
     return cset
 
-def get_repo_index(repo, ts, page):
+def get_cset_prev_before_ts(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_cset_prev_before_ts(repo, sha, ts)
+
+def __get_cset_prev_before_ts(repo, sha, ts):
+    try:
+        cset = (CSet
+                .select(CSet.time, CSet.type)
+                .where((CSet.repo == repo) & (CSet.hkey == sha) & (CSet.time < ts))
+                .order_by(CSet.time.desc())
+                .limit(1)
+                .naive()
+                .first())
+    except CSet.DoesNotExist:
+        return None
+
+    return cset
+
+def get_repo_index(repo, ts, page, limit=None):
     # Subquery for selecting max. time per hkey group
     mx = (CSet
         .select(CSet.hkey, fn.Max(CSet.time).alias("maxtime"))
@@ -255,21 +299,36 @@ def get_repo_index(repo, ts, page):
         .alias("mx"))
 
     # Query for all the relevant csets (those with max. time values)
-    cs = (CSet
-        .select(CSet.hkey, CSet.time)
-        .join(mx, on=(
-            (CSet.hkey == mx.c.hkey_id) &
-            (CSet.time == mx.c.maxtime)))
-        .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
-        .alias("cs"))
-
+    if not limit:
+        cs = (CSet
+            .select(CSet.hkey, CSet.time)
+            .join(mx, on=(
+                (CSet.hkey == mx.c.hkey_id) &
+                (CSet.time == mx.c.maxtime)))
+            .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
+            .alias("cs")
+            .naive())
+    else:
+        cs = (CSet
+            .select(CSet.hkey, CSet.time)
+            .join(mx, on=(
+                (CSet.hkey == mx.c.hkey_id) &
+                (CSet.time == mx.c.maxtime)))
+            .where((CSet.repo == repo) & (CSet.type != CSet.DELETE))
+            .limit(limit)
+            .alias("cs")
+            .naive())
+        
     # Join with the hmap table to retrieve the plain key values
     hm = (HMap
-        .select(HMap.val)
+        .select(HMap.val, cs.c.time)
         .join(cs, on=(HMap.sha == cs.c.hkey_id))
         .naive())
 
-    return hm.iterator()    
+    return hm.iterator()
+
+# def get_repo_index(repo):
+#     pass
 
 # Is Obsolete. insert_revision() now handles saving revisions (at any time)
 # __save_revision() saves revisions with any chain. 
@@ -397,14 +456,14 @@ def __insert_revision(repo, key, sha, stmts, ts):
         
         chain_current = __get_chain_at_ts(repo, sha, ts)
         # save inserted revision
-        __save_revision(repo, sha, chain_current, stmts, ts)
+        return __save_revision(repo, sha, chain_current, stmts, ts)
 
         if cset_next.type == CSet.DELTA or cset_next.type == CSet.SNAPSHOT:
             # delete next revision
             __remove_cset(repo, sha, cset_next.time)
             # reconstruct next revision
             chain = __get_chain_at_ts(repo, sha, cset_next.time)
-            __save_revision(repo, sha, chain, stmts_next, cset_next.time)
+            return __save_revision(repo, sha, chain, stmts_next, cset_next.time)
     else:
         if __get_cset_at_ts(repo, sha, ts):
             # check if there is a revision at this ts, which is the latest one. 
@@ -421,8 +480,29 @@ def __insert_revision(repo, key, sha, stmts, ts):
                 raise IntegrityError
 
         # If there is no cset following, just save the new statements
-        __save_revision(repo, sha, chain_current, stmts, ts)
+        return __save_revision(repo, sha, chain_current, stmts, ts)
 
+
+def add_commit_message(repo, key, ts, message):
+    sha = __get_shasum(key)
+    return __add_commit_message(repo, sha, ts, message)
+
+def __add_commit_message(repo, sha, ts, message):
+
+    # TODO sanitize message
+
+    CommitMessage.create(repo=repo, hkey=sha, time=ts, message=message)
+
+def get_commit_message(repo, key, ts):
+    sha = __get_shasum(key)
+    return __get_commit_message(repo, sha, ts)
+
+def __get_commit_message(repo, sha, ts):
+    try:
+        commit_message = CommitMessage.get(CommitMessage.repo == repo, CommitMessage.hkey == sha, CommitMessage.time == ts)
+    except CommitMessage.DoesNotExist:
+        return None
+    return commit_message.message
 
 # Whether replacement is needed is checked in __insert_revision() so
 # this one is not used right now but could become handy in the future

@@ -1,6 +1,7 @@
 import functools
 import random
 
+import datetime
 import logging
 
 import tornado.auth
@@ -19,8 +20,18 @@ from peewee import fn
 from models import User, Repo, HMap, CSet, Token
 from handlers import RequestHandler
 import revision_logic
+import statistic
 
 logger = logging.getLogger('debug')
+
+QSDATEFMT = "%Y-%m-%d-%H:%M:%S"
+def now():
+    # replace microseconds, because otherwise this fraction will cause 
+    # inconsitencies when comparing to datetimes that are exact to the second only
+    return datetime.datetime.utcnow().replace(microsecond=0)
+
+def date(s, fmt):
+    return datetime.datetime.strptime(s, fmt)
 
 class BaseHandler(RequestHandler):
     """Base class for all web front end handlers."""
@@ -47,6 +58,10 @@ class HomeHandler(BaseHandler):
 
     def get(self):
         self.render("home/index.html")
+
+class AboutHandler(BaseHandler):
+    def get(self):
+        self.render("home/about.html")
 
 class SearchHandler(BaseHandler):
     def get(self):
@@ -88,6 +103,19 @@ class EditUserHandler(BaseHandler):
         user.save()
         self.redirect(self.reverse_url("web:settings"))
 
+class StatisticHandler(BaseHandler):
+    def get(self):
+        usercount = statistic.get_user_count()
+        if "users" in self.request.path:
+            page = int(self.get_query_argument("page", "1"))
+            users = statistic.get_all_users(page)
+            self.render("statistic/users.html", title="All Users", users=users, usercount=usercount, page_size=statistic.INDEX_PAGE_SIZE, current_page=page)
+        else:
+            repocount = statistic.get_repo_count()
+            resourcecount = statistic.get_resource_count()
+            revisioncount = statistic.get_revision_count()
+            self.render("statistic/show.html", title="tailr - Statistics", usercount=usercount, repocount=repocount, resourcecount=resourcecount, revisioncount=revisioncount)
+
 class RepoHandler(BaseHandler):
     def get(self, username, reponame):
         try:
@@ -99,21 +127,84 @@ class RepoHandler(BaseHandler):
             timemap = self.get_query_argument("timemap", "false") == "true"
             datetime = self.get_query_argument("datetime", None)
             key = self.get_query_argument("key", None)
+            index = self.get_query_argument("index", "false") == "true"
 
+            if self.get_query_argument("datetime", None):
+                datestr = self.get_query_argument("datetime")
+                try:
+                    ts = date(datestr, QSDATEFMT)
+                except ValueError:
+                    raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+            elif "Accept-Datetime" in self.request.headers:
+                datestr = self.request.headers.get("Accept-Datetime")
+                ts = date(datestr, RFC1123DATEFMT)
+            else:
+                ts = now()
             if key and not timemap:
-                self.render("repo/memento.html", repo=repo, key=key,
-                    datetime=datetime)
+                chain = revision_logic.get_chain_at_ts(repo, key, ts)
+                # use ts of cset instead of now(), to make prev work
+                if len(chain) != 0:
+                    ts = chain[-1].time
+
+                cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
+                cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
+                if cs_prev:
+                    cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+                else:
+                    cs_prev_str = ""
+                if cs_next:
+                    cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+                else:
+                    cs_next_str = "" 
+                commit_message = revision_logic.get_commit_message(repo, key, ts)
+
+                self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str, commit_message=commit_message)
             elif key and timemap:
                 self.render("repo/history.html", repo=repo, key=key)
+            elif index:
+                cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).alias("cs"))
+                key_count = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id))).count()
+
+                page = int(self.get_query_argument("page", "1"))
+
+
+                hm = revision_logic.get_repo_index(repo, ts, page)
+                
+                self.render("repo/index.html", repo=repo, title=title, key_count=key_count, page_size=revision_logic.INDEX_PAGE_SIZE, hm=hm, current_page=page)
             else:
-                cs = (CSet.select(fn.distinct(CSet.hkey))
-                    .where(CSet.repo == repo).limit(5).alias("cs"))
-                samples = (HMap.select(HMap.val)
-                    .join(cs, on=(HMap.sha == cs.c.hkey_id)))
-                self.render("repo/show.html", title=title, repo=repo,
-                    samples=list(samples))
+                hm = list(revision_logic.get_repo_index(repo, ts, 1, 5))
+                # cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).limit(5).alias("cs"))
+                # samples = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id)))
+                self.render("repo/show.html", title=title, repo=repo, hm=hm)
         except Repo.DoesNotExist:
             raise HTTPError(reason="Repo not found.", status_code=404)
+
+    @authenticated
+    def delete(self, username, reponame):
+        if username != self.current_user.name:
+            raise HTTPError(reason="Unauthorized: Unowned Repo", status_code=403)
+            
+        key = self.get_query_argument("key")
+        update = self.get_query_argument("update", "false") == "true"
+        repo = revision_logic.get_repo(username, reponame)
+
+        if not key:
+            raise HTTPError(reason="Missing argument 'key'.", status_code=400)
+        if repo == None:
+            raise HTTPError(reason="Repo not found.", status_code=404)
+
+        datestr = self.get_query_argument("datetime", None)
+        ts = date(datestr, QSDATEFMT) or now()
+        
+        if update:
+            # When update-param is set and the ts is the exact one of an existing cset (ts does not need to be increasing)
+            if revision_logic.get_cset_at_ts(repo, key, ts):
+                revision_logic.remove_revision(repo, key, ts)
+                self.finish()
+                return
+            else:
+                raise HTTPError(reason="No memento exists for given timestamp. When 'update' is set this must apply", status_code=400)
+
 
 class CreateRepoHandler(BaseHandler):
     @authenticated

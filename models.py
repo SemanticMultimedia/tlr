@@ -1,5 +1,6 @@
 from peewee import *
 from database import *
+import datetime
 
 dbproxy = Proxy()
 
@@ -44,6 +45,7 @@ class CSet(Base):
     time = MSQLTimestampField(precision=0, null=False)
     type = MSQLTinyIntegerField(unsigned=True, null=False)
     len  = MSQLMediumIntegerField(unsigned=True, null=False)
+    # created_at = DateTimeField(default=datetime.datetime.now)
     # base = MSQLTimestampField(precision=3, null=False)
 
     class Meta:
@@ -54,6 +56,15 @@ class CSet(Base):
     DELETE = 2
 
 # TODO: Store blobs in a dedicated blobstore? (benchmark)
+
+class CommitMessage(Base):
+    repo = ForeignKeyField(Repo, related_name="commitMessages", null=False)
+    hkey = ForeignKeyField(HMap, null=False)
+    time = MSQLTimestampField(precision=0, null=False)
+    message = CharField(max_length=512)
+
+    class Meta:
+        primary_key = CompositeKey("repo", "hkey", "time")
 
 class Blob(Base):
     repo = ForeignKeyField(Repo, related_name="blobs", null=False)
