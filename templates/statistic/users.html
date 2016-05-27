@@ -17,75 +17,78 @@
   <div class="col-sm-10 col-sm-offset-1">
     <div class="masthead">
     <h1 class="text-center">All Users</h1>
-    <div class="row text-center pagination-row">
-  {% set base_url = request.protocol + "://" + request.host + request.path %}
-  <nav>
-    <ul class="pagination ">
-        <li><a href="{{ base_url }}" aria-label="First"><span aria-hidden="true">First</span></a> </li>
-    {% if current_page != 1 %}
-      <li>
-          <a href="{{ base_url + "?page="+ str(current_page-1) }}" aria-label="Previous">
-    {% else %}
-        <li class="disabled">
-        <a href="#" aria-label="Previous">
-    {% end %}  
-          <span aria-hidden="true">&laquo;</span>
-          </a>
-      </li>
-      {% set i = 0 %}
-      {% set last_page = 0 %}
-      {% set page_count = 0 %}
-      {% while i < usercount %}
-        {% set page_count += 1 %}
-        {% if current_page == page_count %}
-          <li class="active"><a href="{{ base_url + "?page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
-        {% elif (page_count >= current_page -5) and (page_count <= current_page +5) %}
-          <li><a href="{{ base_url + "?page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
-        {% end %}
-      {% set i += page_size %}
-      {% set last_page = page_count %}
-      {% end %}
-
-    {% if current_page < last_page %}
-      <li>
-          <a href="{{ base_url + "?page="+ str(current_page+1) }}" aria-label="Next">
-    {% else %}
-        <li class="disabled">
-        <a href="#" aria-label="Previous">
-    {% end %}  
-          <span aria-hidden="true">&raquo;</span>
-          </a>
-      </li>
-      <li><a href="{{ base_url + "?page="+str(last_page) }}" aria-label="Last"><span aria-hidden="true">Last</span></a> </li>
-    </ul>
-  </nav>
-</div>
-
-
-
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <td>Name</td>
-            <!-- <td>Actions</td> -->
-          </tr>
-        </thead>
-        <tbody>
-          {% for user in users %}
-            <tr>
-              <td><a href='{{ request.protocol + "://" + request.host + "/"+user.name }}'>{{ user.name }}</a></td>
-              <!-- <td></td> -->
-            </tr>
+      <div class="row text-center pagination-row">
+      {% set base_url = request.protocol + "://" + request.host + request.path %}
+      <nav>
+        <ul class="pagination ">
+            <li><a href="{{ base_url }}" aria-label="First"><span aria-hidden="true">First</span></a> </li>
+        {% if current_page != 1 %}
+          <li>
+              <a href="{{ base_url + "?page="+ str(current_page-1) }}" aria-label="Previous">
+        {% else %}
+            <li class="disabled">
+            <a href="#" aria-label="Previous">
+        {% end %}  
+              <span aria-hidden="true">&laquo;</span>
+              </a>
+          </li>
+          {% set i = 0 %}
+          {% set last_page = 0 %}
+          {% set page_count = 0 %}
+          {% while i < usercount %}
+            {% set page_count += 1 %}
+            {% if current_page == page_count %}
+              <li class="active"><a href="{{ base_url + "?page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
+            {% elif (page_count >= current_page -5) and (page_count <= current_page +5) %}
+              <li><a href="{{ base_url + "?page="+ str(page_count) }}">{{ str(page_count) }}</a></li>
+            {% end %}
+          {% set i += page_size %}
+          {% set last_page = page_count %}
           {% end %}
-        </tbody>
-        <tfoot>
-          
-        </tfoot>
-      </table>
+
+        {% if current_page < last_page %}
+          <li>
+              <a href="{{ base_url + "?page="+ str(current_page+1) }}" aria-label="Next">
+        {% else %}
+            <li class="disabled">
+            <a href="#" aria-label="Previous">
+        {% end %}  
+              <span aria-hidden="true">&raquo;</span>
+              </a>
+          </li>
+          <li><a href="{{ base_url + "?page="+str(last_page) }}" aria-label="Last"><span aria-hidden="true">Last</span></a> </li>
+        </ul>
+      </nav>
+    </div>
+      <div class="content-users">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <td>Name</td>
+              <!-- <td>Actions</td> -->
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td><a href='{{ request.protocol + "://" + request.host + "/"+user.name }}'>{{ user.name }}</a></td>
+                <!-- <td></td> -->
+              </tr>
+            {% end %}
+          </tbody>
+          <tfoot>
+            
+          </tfoot>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 {% end %}
-
+{% block scripts %}
+<script type="text/javascript">
+  $( ".pagination-row" ).clone().insertAfter( ".content-users" );
+</script>
+{% end %}
 
 
