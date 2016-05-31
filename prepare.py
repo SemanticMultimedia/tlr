@@ -18,5 +18,5 @@ if __name__ == "__main__":
         HMap,
         CSet,
         Blob,
-        CommitMessage,
-    ])
+        CommitMessage
+    ], safe=True)
