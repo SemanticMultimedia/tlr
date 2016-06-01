@@ -66,7 +66,7 @@ class BaseHandler(RequestHandler):
         pass
 
     def write_error(self, status_code, **kwargs):
-        self.set_header('Content-Type', 'text/json')
+        self.set_header('Content-Type', 'application/json')
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback
             lines = []
@@ -109,7 +109,7 @@ class UserHandler(BaseHandler):
             pass
             
 
-        accept = self.request.headers.get("Accept", "")
+        accept = self.request.headers.get("Accept", "*/*")
         user_url = (self.request.protocol + "://" + self.request.host)
 
         if "application/json" in accept or "*/*" in accept:
@@ -277,7 +277,7 @@ class RepoHandler(BaseHandler):
     def __get_delta_of_memento(self, repo, key, ts):
         added, deleted = revision_logic.get_delta_of_memento(repo, key, ts)
 
-        accept = self.request.headers.get("Accept", "")
+        accept = self.request.headers.get("Accept", "*/*")
         self.set_header("Vary", "accept-datetime")
         if "application/json" in accept:
             encoder = json.JSONEncoder()
@@ -339,7 +339,7 @@ class RepoHandler(BaseHandler):
                            self.request.host + self.request.uri)
             timegate_url = (self.request.protocol + "://" +
                             self.request.host + self.request.path + "?key=" + key)
-            accept = self.request.headers.get("Accept", "")
+            accept = self.request.headers.get("Accept", "*/*")
 
             if "application/json" in accept or "*/*" in accept:
                 self.set_header("Content-Type", "application/json")
