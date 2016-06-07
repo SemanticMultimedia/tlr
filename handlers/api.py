@@ -345,13 +345,12 @@ class RepoHandler(BaseHandler):
                 self.set_header("Content-Type", "application/json")
 
                 self.write('{"original_uri": ' + json_encode(key))
-                self.write(', "timegate_uri": "' + timegate_url + '"')
-                self.write(', "timemap_uri": "' + timemap_url + '"')
+                self.write(', "timegate_uri": ' + json_encode(timegate_url))
+                self.write(', "timemap_uri": ' + json_encode(timemap_url))
 
                 self.write(', "mementos": {"list":[')
 
-                m = ('{{"datetime": "{0}", "uri": "' + timegate_url +
-                     '&datetime={1}"}}')
+                m = ('{{"datetime": "{0}", "uri": ' + json_encode(timegate_url + '&datetime={1}') + '}}')
 
                 self.write(m.format(last_cset.time.isoformat(),
                                     last_cset.time.strftime(QSDATEFMT)))
