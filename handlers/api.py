@@ -297,7 +297,8 @@ class RepoHandler(BaseHandler):
             
             self.set_header("Content-Type", "text/plain")
             self.write(join(added, "\n"))
-            self.write("\n")
+            if added and deleted:
+                self.write("\n")
             self.write(join(deleted, "\n"))
 
 
@@ -313,7 +314,8 @@ class RepoHandler(BaseHandler):
         self.set_header("Vary", "accept-datetime")
         self.set_header("Content-Type", "text/plain")
         self.write(join(added, "\n"))
-        self.write("\n")
+        if added and deleted:
+            self.write("\n")
         self.write(join(deleted, "\n"))
 
     def __get_timemap(self, repo, key, header_only=False):
