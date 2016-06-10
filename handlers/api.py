@@ -435,7 +435,7 @@ class RepoHandler(BaseHandler):
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
         commit_message = self.get_query_argument("m", None)
-        
+
         reset = self.get_query_argument("reset", None)
         force = self.get_query_argument("force", None)
         # replace = self.get_query_argument("replace", None)
@@ -577,6 +577,7 @@ class RepoHandler(BaseHandler):
         key = self.get_query_argument("key")
         update = self.get_query_argument("update", "false") == "true"
         repo = revision_logic.get_repo(username, reponame)
+        commit_message = self.get_query_argument("m", None)
 
         if username != self.current_user.name:
             raise HTTPError(reason="Unauthorized: Unowned Repo", status_code=403)
@@ -601,3 +602,6 @@ class RepoHandler(BaseHandler):
                 revision_logic.save_revision_delete(repo, key, ts)
             except LookupError:
                 raise HTTPError(reason="Resource does not exist at given time.", status_code=404)
+            else:
+                if commit_message:
+                    revision_logic.add_commit_message(repo, key, ts, commit_message.replace('\n', '. ').replace('\r', '. '))
