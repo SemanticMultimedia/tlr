@@ -63,6 +63,10 @@ class AboutHandler(BaseHandler):
     def get(self):
         self.render("home/about.html")
 
+class DocumentationHandler(BaseHandler):
+    def get(self):
+        self.render("home/documentation.html")
+
 class SearchHandler(BaseHandler):
     def get(self):
         query = tornado.escape.url_unescape(self.get_argument("q", ""))

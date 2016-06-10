@@ -435,7 +435,9 @@ class RepoHandler(BaseHandler):
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
         commit_message = self.get_query_argument("m", None)
-        # force = self.get_query_argument("force", None)
+        
+        reset = self.get_query_argument("reset", None)
+        force = self.get_query_argument("force", None)
         # replace = self.get_query_argument("replace", None)
 
         if username != self.current_user.name:

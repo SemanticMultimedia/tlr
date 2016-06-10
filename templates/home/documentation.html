@@ -1,0 +1,105 @@
+{% extends "../base.html" %}
+
+{% block content %}
+{% set base_url = request.protocol + "://" + request.host %}
+{% set api_url = request.protocol + "://" + request.host + "/api" %}
+
+<div class="row">
+  <div class="col-sm-10 col-sm-offset-1">
+    <div class="masthead">
+			<h1 class="text-center">API Documentation</h1>
+    </div>
+    <div class="documentation">
+    	<h2>Repositories and Resources</h2>
+    	<p>A user can create and own repositories. A repository can contain multiple resources, which are identified by a <code>key</code>. </p>
+			<p>A certain resource from a repository can be accessed by specifying its URI in the <code>key</code> query parameter. </p> 
+			<p>Tailr uses the following url-schema for its web interface:</p>
+			<pre><code class="bash">{{ base_url }}/USERNAME/REPONAME?key=http://...</code></pre>
+			<p>and the following for accesing resources via the API:</p>
+			<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
+    </div>
+    <div class="documentation">
+    	<h2>Memento API</h2>
+    	<p>Tailr implements a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a>-API. </p>
+    	<p>It thereby follows <i>Pattern 1</i>, where the Original Resource acts as Timegate.</p>
+			<h4><code>Original Resource</code></h4>
+			<p>[...]</p>
+				<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
+    	<h4><code>Timegate</code></h4>
+    	<p>[...]</p>
+				<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
+			<h4><code>Timemap</code></h4>
+			<p>[...]</p>
+				<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...&amp;timemap=true</code></pre>
+			<h5>HTTP-Params are:</h5>
+    	<h5><code>key</code></h5>
+    	<div class="description intended">
+				<p>Identifies the resource. </p>
+				<p>Required for any requests. </p>
+    	</div>
+			<p>[...]</p>
+    </div>
+
+    <div class="documentation">
+    	<h2>Push API</h2>
+
+    	<p>The Push API allows to insert new data revisions into the system. </p>
+    	<p>You can push to any timestamp, they do not need to be monotonically increasing. Pushing to a timestamp at which another resource already exists, will replace that resource.</p>
+    	<p>Pushing is done via the HTTP-<code>PUT</code>-Method against the API. </p>
+    	<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME</code></pre>
+    	<h5>HTTP-Params are:</h5>
+    	<h5><code>key</code></h5>
+    	<div class="description intended">
+				<p>Identifies the resource. </p>
+    	</div>
+    	<h5><code>datetime</code> <i>(optional)</i></h5>
+  		<div class="description intended">
+				<p>Parameter to specify the timestamp of a revision. </p>
+				<p>If left blank, the timestamp will be set to the current server time. </p>
+				<p>The format used is <code>%Y-%m-%d-%H:%M:%S</code> e.g. <code>2015-11-29-23:12:59</code></p>
+				<p>The precision is seconds.</p>
+    	</div>
+    	<h5><code>m</code> <i>(optional)</i></h5>
+  		<div class="description intended">
+				<p>Defines the commit message related to a revision.</p>
+    	</div>
+			<p>Data is commited as payload.</p>
+	    <p>Supported formats are <code>application/n-triples</code>, <code>application/rdf+xml</code>and <code>text/turtle</code></p>
+    </div>
+
+    <div class="documentation">
+    	<h3>Deleting</h3>
+
+    	<p>Deleting can mean two things, when pushing to a resource.</p>
+    	<ol>
+    		<li>Marking a resource as deleted.</li>
+    		<li>Deleting a revision</li>
+    	</ol>
+    	<h4>1. Marking a resource as deleted:</h4>
+    	<p>Works exactly like pushing, except using the HTTP-<code>DELETE</code>-Method.</p>
+    	<p class="intended"><i>Note: Currently there are no commit messages possible for deletes. Will be added soon.</i></p>
+
+			<h4>2. Deleting a revision:</h4>
+			Also done using the HTTP-<code>DELETE</code>-Method.
+			<h5>HTTP-Params are:</h5>
+    	<h5><code>update</code></h5>
+    	<div class="description intended">
+				<p>Marks a delete request as deletion of a revision.</p>
+				<p>Must be set to delete a revision.</p>
+    	</div>
+    	<h5><code>datetime</code></h5>
+  		<div class="description intended">
+				<p>Parameter to identify a speific revision. </p>
+				<p>Must be set and match the timestamp of a revision in order to identify a revision. </p>
+				<p>The format used is <code>%Y-%m-%d-%H:%M:%S</code> e.g. <code>2015-11-29-23:12:59</code></p>
+    	</div>
+    </div>
+	</div>
+</div>
+
+
+
+{% end %}
+{% block scripts %}
+
+{% end %}
