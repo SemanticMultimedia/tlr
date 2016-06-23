@@ -49,13 +49,16 @@
     	   <p>and the following for accesing resources via the API:</p>
     	   <pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
            <p>To recieve a list of the reocources that a repository contains, use the <code>index</code> query parameter.</p>
-           <pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?index=true&amp;page=4</code></pre>
+           <pre><code class="bash">GET {{ api_url }}/USERNAME/REPONAME?index=true&amp;page=4</code></pre>
            <h5><code>index</code></h5>
                 <div class="description intended">
                     <p>Can be set to true to recieve a list of resources contained in a repo. </p>
                     <p>Uses pagination (1000 resources/page).</p>
                     <p>Pages are selected through an additional <code>&amp;page</code> parameter</p>
                 </div>
+            <h4>Repositories of users</h4>
+            <p>To recieve a list of all repositories of a user as json you can query the api for the user:</p>
+            <pre><code class="bash">GET {{ api_url }}/USERNAME</code></pre>
     </div>
     <div class="documentation">
         <a name="memento_api"></a>
@@ -64,7 +67,7 @@
             <p>Tailr supports HTTP-<code>GET</code> and <code>HEAD</code> requests.</p>
         	<p>It thereby follows <i>Pattern 1</i>, where the Original Resource acts as Timegate.</p>
             <p>The return format for accesing a revision is <code>application/n-quads</code>.</p>
-            <h5>A Memento-resource consists out of three resources. These are:</h5>
+            <h5>A Memento-resource consists out of three components. These are:</h5>
 
     		<h4><code>Original Resource</code></h4>
                 <p class="intended quote"><em>"A Web resource that exists or used to exist on the live Web for which we want to find a prior version. By prior version is meant a Web resource that encapsulates what the Original Resource was like at some time in the past."</em></p>

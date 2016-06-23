@@ -140,6 +140,7 @@ class Authorized(unittest.TestCase):
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload3 = "<http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://PROPLAYERXYZ.bnf.fr/vocabulary/roles/r70> <http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	empty_payload = ""
 	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
 	payload_compromised_wrong_blankNode = ":ab123 <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."
 	payload_compromised_missing_object = "_:ab123 <http://data.bnf.fr/vocabulary/roles/r70> . "
@@ -923,6 +924,20 @@ class Authorized(unittest.TestCase):
 	
 
 
+
+	def test_330_put_empty_payload(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.empty_payload)
+		self.assertEqual(r.status_code, 200, "putting empty payload does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test_331_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),11, "dputting empty payload did not create a blob")
+
+	def test_332_number_of_changesets_increased_by_two(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),13, "dputting empty payload did not create a changeset")
+
+	def test_333_get_content_after_empty_put(self):
+		r = requests.get(self.apiURI, params=self.params_key)
+		self.assertEqual(r.text, self.empty_payload, "GET memento after empty push returns the wrong memento. Was:\n"+r.text+"\nshould be:\n"+self.empty_payload)
 	
 	# TODO Tests
 	# test commit messages
@@ -934,8 +949,6 @@ class Authorized(unittest.TestCase):
 	# TODO test other return formats 
 
 	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
-
-
 
 
 	def test780_get_index_for_non_existing_user(self):
