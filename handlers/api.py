@@ -167,7 +167,10 @@ class RepoHandler(BaseHandler):
                 raise HTTPError(reason="Invalid format of datetime param", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
-            ts = date(datestr, RFC1123DATEFMT)
+            try:
+                ts = date(datestr, RFC1123DATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime in Header-Field Accept-Datetime ", status_code=400)
         else:
             ts = now()
 
@@ -203,7 +206,7 @@ class RepoHandler(BaseHandler):
 
         if not header_only:
             self.set_header("Content-Type", "application/n-quads")
-        self.set_header("Vary", "accept-datetime")
+            self.set_header("Vary", "accept-datetime")
 
         chain = revision_logic.get_chain_at_ts(repo, key, ts)
         if len(chain) == 0:
@@ -399,6 +402,8 @@ class RepoHandler(BaseHandler):
         self.set_header("Vary", "accept-datetime")
         self.set_header("Content-Type", "text/plain")
 
+        # TODO other return formats
+
         page = int(self.get_query_argument("page", "1"))
 
         hm = revision_logic.get_repo_index(repo, ts, page)
@@ -436,8 +441,7 @@ class RepoHandler(BaseHandler):
         key = self.get_query_argument("key", None)
         commit_message = self.get_query_argument("m", None)
 
-        reset = self.get_query_argument("reset", None)
-        force = self.get_query_argument("force", None)
+        # force = self.get_query_argument("force", None)
         # replace = self.get_query_argument("replace", None)
 
         if username != self.current_user.name:

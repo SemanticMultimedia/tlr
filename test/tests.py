@@ -924,15 +924,17 @@ class Authorized(unittest.TestCase):
 
 
 	
-	#TODO Tests
+	# TODO Tests
 	# test commit messages
 
 	# TODO test for more facts about deleting a revision
 	# update-delete without ts shall not create a del-cset
+	# TODO delete mit update=true zu einem zeitpunkt, an dem keine revision existiert, soll kein delete erzeugen
 
 	# TODO test other return formats 
 
 	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
+
 
 
 
