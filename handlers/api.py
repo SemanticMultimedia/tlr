@@ -398,18 +398,45 @@ class RepoHandler(BaseHandler):
     def __get_index(self, repo, ts):
         # Generate an index of all URIs contained in the dataset at the
         # provided point in time or in its current state.
-
         self.set_header("Vary", "accept-datetime")
-        self.set_header("Content-Type", "text/plain")
 
-        # TODO other return formats
+        accept = self.request.headers.get("Accept", "")
 
         page = int(self.get_query_argument("page", "1"))
-
         hm = revision_logic.get_repo_index(repo, ts, page)
+        
+        if "application/json" in accept or "*/*" in accept:
+            self.set_header("Content-Type", "application/json")
+            repo_url = (self.request.protocol + "://" + self.request.host + "/" + repo.user.name + "/" + repo.name)
 
-        for h in hm:
-            self.write(h.val + "\n")
+            first = None
+            try:
+                first = hm.next()
+            except StopIteration:
+                # No keys for repo
+                # No need to raise an error, just return empty list in json
+                pass
+
+            self.write('{"username": ' + json_encode(repo.user.name))
+            self.write(', "repository": '+json_encode(repo.name))
+            self.write(', "keys": {"list":[')
+
+            m = ('{{"key": "{0}", "uri": "'+repo_url+'?key={0}"}}')
+            if first:
+                self.write(m.format(first.val))
+            for h in hm:
+                self.write("," + m.format(h.val))
+            self.write(']}')
+            self.write('}')
+        elif "text/plain" in accept:
+            self.set_header("Content-Type", "text/plain")
+            for h in hm:
+                self.write(h.val + "\n")
+
+        # TODO information of number of all pages
+
+
+
 
 
     def __get_next_memento(self, repo, key, ts):

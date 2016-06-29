@@ -12,6 +12,7 @@
             <li><a href="#repositories_and_resources">Repositories and Resources</a></li>
             <li><a href="#memento_api">Memento API</a></li>
                 <ol>
+                    <li><a href="#priorversions">Accessing prior versions</a></li>
                     <li><a href="#headrequests">HEAD-requests</a></li>
                     <li><a href="#furtherinfo">Further information</a></li>
                 </ol>
@@ -46,15 +47,24 @@
     	   <p>A certain resource from a repository can be accessed by specifying its URI in the <code>key</code> query parameter. </p> 
     	   <p>Tailr uses the following uri-schema for its web interface:</p>
     	   <pre><code class="bash">{{ base_url }}/USERNAME/REPONAME?key=http://...</code></pre>
-    	   <p>and the following for accesing resources via the API:</p>
+    	   <p>and the following for accessing resources via the API:</p>
     	   <pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
-           <p>To recieve a list of the reocources that a repository contains, use the <code>index</code> query parameter.</p>
+           <h4>Resources of Repositories</h4>
+           <p>To recieve a list of the resources that a repository contains, use the <code>index</code> query parameter.</p>
            <pre><code class="bash">GET {{ api_url }}/USERNAME/REPONAME?index=true&amp;page=4</code></pre>
+           <p>Supported return formats are <code>application/json</code> (default) and <code>text/plain</code>. These can be requestd in the <i>Accept</i>-Header-field</p>
+           <pre><code class="bash">Accept: "type/subtype"</code></pre></p>
            <h5><code>index</code></h5>
                 <div class="description intended">
                     <p>Can be set to true to recieve a list of resources contained in a repo. </p>
                     <p>Uses pagination (1000 resources/page).</p>
                     <p>Pages are selected through an additional <code>&amp;page</code> parameter</p>
+                </div>
+            <p>You can also access past states of the users indexpage. This is done via the <code>datetime</code> query parameter. </p>
+            <h5><code>datetime</code> <em>(optional)</em></h5>
+                <div class="description intended">
+                    <p>Parameter to specify a point in time. </p>
+                    <p><em>Tailr</em> will reconstruct the state of the users indexpage at that time.</p>
                 </div>
             <h4>Repositories of users</h4>
             <p>To recieve a list of all repositories of a user as json you can query the api for the user:</p>
@@ -66,7 +76,7 @@
         	<p>Tailr implements a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a>-API. You can access prior states of a resource through it. These revisions are called <b>Memento</b>.</p>
             <p>Tailr supports HTTP-<code>GET</code> and <code>HEAD</code> requests.</p>
         	<p>It thereby follows <i>Pattern 1</i>, where the Original Resource acts as Timegate.</p>
-            <p>The return format for accesing a revision is <code>application/n-quads</code>.</p>
+            <p>The return format for accessing a revision is <code>application/n-quads</code>.</p>
             <h5>A Memento-resource consists out of three components. These are:</h5>
 
     		<h4><code>Original Resource</code></h4>
@@ -79,7 +89,7 @@
                 <p> The Timemap is a resource from which a list of URIs of Mementos of the Original Resource is available.</p>
         		<p>The timemap of a resource is accessible by setting the <code>timemap</code>-parameter to <em>true</em>.</p>
         			<pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...&amp;timemap=true</code></pre>
-                <p>Supported return formats are <code>application/json</code> and <code>application/link-format</code>. These can be requestd in the <i>Accept</i>-Header-field</p>
+                <p>Supported return formats are <code>application/json</code> (default) and <code>application/link-format</code>. These can be requestd in the <i>Accept</i>-Header-field</p>
                 <pre><code class="bash">Accept: "type/subtype"</code></pre></p>
             <h4><code>Timegate</code></h4>
 
@@ -95,13 +105,16 @@
         			<p>Identifies the resource. </p>
         			<p>Required for any request. </p>
             	</div>
-                <h5>To get prior versions of a resource there are two options:</h5>
+
+            <a name="priorversions"></a>
+            <h3>Accessing prior versions of a resource</h3>
                 <p>If no datetime-information is given in a request, the timegate will deliver the current revision of a resource. </p>
+                <h5>To get prior versions of a resource there are two options:</h5>
                 <p>To specify the state of a resource at a certain point in time you can use either the <code>datetime</code> param or - according to the Memento standard - the <code>Accept-Datetime</code> Header-field:</p>
                 <p>The timestamp does not have to match the exact timestamp of a revision. A revision applies from its timestamp to the timestamp of the next revision.</p>
                 <h5><code>datetime</code> <i>(optional)</i></h5> 
                 <div class="description intended">
-                    <p>Parameter to identify a speific revision. </p>
+                    <p>Parameter to specify a point in time. The timegate will reconstruct the state of the resource at that time. </p>
                     <p>The format used is <code>%Y-%m-%d-%H:%M:%S</code> e.g. <code>2015-11-29-23:12:59</code></p>
                 </div>
                 <h5><code>Accept-Datetime Header-field</code> <i>(optional)</i></h5>

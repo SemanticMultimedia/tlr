@@ -327,8 +327,6 @@ def get_repo_index(repo, ts, page, limit=None):
 
     return hm.iterator()
 
-# def get_repo_index(repo):
-#     pass
 
 # Is Obsolete. insert_revision() now handles saving revisions (at any time)
 # __save_revision() saves revisions with any chain. 
