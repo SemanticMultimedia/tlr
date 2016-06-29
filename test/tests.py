@@ -3,6 +3,8 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir)
 
+from test_helper import parse_link_header
+
 from peewee import *
 from database import MDB as Database
 
@@ -101,8 +103,12 @@ class Authorized(unittest.TestCase):
 	uploadDateString2 = "2013-07-13-00:00:00"
 	uploadDateString3 = "2013-07-11-00:00:00"
 	uploadDateString4 = "2014-07-11-00:00:00"
+	uploadDateString5 = "2013-07-14-10:00:00"
+	uploadDateString5a = "2013-07-14-20:00:00"
 
 	params_key = {'key':key}
+	params_key_delta = {'key':key, 'delta': "true"}
+	params_datetime_delta = {'key':key, 'delta': "true", 'datetime':uploadDateString}
 	params_key_timemap = {'key':key, 'timemap': "true"}
 	params_index = {'index': "true"}
 	params_ttl = {'key': key_ttl}
@@ -117,12 +123,14 @@ class Authorized(unittest.TestCase):
 	params_datetime2 = {'key':key,'datetime':uploadDateString2}
 	params_datetime3 = {'key':key,'datetime':uploadDateString3}
 	params_datetime4 = {'key':key,'datetime':uploadDateString4}
+	params_datetime5 = {'key':key,'datetime':uploadDateString5}
 	empty_params = {}
 
 	contentType_ntriples = "application/n-triples"
 	header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType_ntriples}
 	header_ttl = {'Authorization':"token "+tailrToken, 'Content-Type':"text/turtle"}
 	header_xml = {'Authorization':"token "+tailrToken, 'Content-Type':"application/rdf+xml"}
+	header_index = {'Accept':"text/plain"}
 	apiURI = "http://localhost:5000/api/"+userName+"/"+repoName
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
 	userURI = "http://localhost:5000/api/"+userName
@@ -133,11 +141,14 @@ class Authorized(unittest.TestCase):
 	payload = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload2 = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expressions> <http://data.bnf.fr/vocabulary/roles/s70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."+"\n"+"<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 	payload3 = "<http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://PROPLAYERXYZ.bnf.fr/vocabulary/roles/r70> <http://PROPLAYERXYZ.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
+	empty_payload = ""
 	payload_compromised_angle_bracket = "<http://data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person ."
 	payload_compromised_wrong_blankNode = ":ab123 <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Persons> ."
 	payload_compromised_missing_object = "_:ab123 <http://data.bnf.fr/vocabulary/roles/r70> . "
 	payload_compromised_wrong_uri = "<data.bnf.fr/ark:/12148/cb308749370#frbr:Expression> <http://data.bnf.fr/vocabulary/roles/r70> <http://data.bnf.fr/ark:/12148/cb12204024r#foaf:Person> ."
 
+
+	datetime_clipboard = datetime.datetime.now()
 
 	@classmethod
 	def shasum(self, s):
@@ -175,6 +186,29 @@ class Authorized(unittest.TestCase):
 		return CSet.get(CSet.repo == repo, CSet.hkey == sha, CSet.time == ts)
 
 
+	@staticmethod
+	def look_for_string_in_link_header(link_header, s):
+		for k,v in link_header.items():
+			for m,n in v.items():
+				if s in n:
+					return True
+		return False
+
+	@staticmethod
+	def get_datetime_for_memento_rel(link_header, s):
+		for k,v in link_header.items():
+			for m,n in v.items():
+				if s in n:
+					return v['datetime']
+
+	@staticmethod
+	def get_key_for_value_from_link_header(link_header, s):
+		for k,v in link_header.items():
+			for m,n in v.items():
+				for no in n:
+					if s == no:
+						return k
+
 	# initial state
 	def test000_no_hmap_entry_on_start(self):
 		self.assertEqual(self.numberOfHMaps(),0,"hmap table has entries initially")
@@ -199,6 +233,29 @@ class Authorized(unittest.TestCase):
 
 	def test013_blob_entry_exists(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),1, "pushing on empty repo did not create a blob")
+
+
+	def test014_next_does_not_exist_if_only_one_cset(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertFalse(self.look_for_string_in_link_header(link_header, "next"), "Link-header did contain a next entry, although there is only one cset and therefore no next one")
+
+	def test015_prev_does_not_exist_if_only_one_cset(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertFalse(self.look_for_string_in_link_header(link_header, "prev"), "Link-header did contain a prev entry, although there is only one cset and therefore no previous one")
+
+	def test016_prev_equals_first_if_only_one_cset(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertEqual(self.get_datetime_for_memento_rel(link_header, 'first')[0], self.get_datetime_for_memento_rel(link_header, 'last')[0], "first and last entry were not the same, when there is only one cset")
+
+	def test017_prev_and_first_equals_only_cset_if_only_one_cset(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'first')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString , "first and last did not equal the only cset, when there is only one cset")
+
 
 
 	# put on same timestamp 
@@ -238,7 +295,47 @@ class Authorized(unittest.TestCase):
 	def test024_number_of_blobs_increased(self):
 		self.assertEqual(self.numberOfBlobsForRepo(self.repo),2, "pushing on existing repo did not create a blob")
 
+	def test025_next_does_not_exist_for_latest_memento(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertFalse(self.look_for_string_in_link_header(link_header, "next"), "Link-header did contain a next entry for latest memento")
 
+
+	def test025_prev_exists_for_latest_memento(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertTrue(self.look_for_string_in_link_header(link_header, "prev"), "Link-header did not contain a prev entry for latest memento")
+
+	def test025_prev_is_first_memento_for_latest_memento_when_two_exist(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'prev')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString , "first and prev entry were not the same, when there is only one memento")
+
+	def test025_first_is_first_memento_for_latest_memento_when_two_exist(self):
+		r = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'first')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString)
+
+
+
+	def test026_prev_does_not_exist_for_first_cset(self):
+		r = requests.get(self.apiURI, params=self.params_datetime, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertFalse(self.look_for_string_in_link_header(link_header, "prev"), "Link-header did contain a prev entry for first memento")
+
+	def test026_next_exists_for_first_cset(self):
+		r = requests.get(self.apiURI, params=self.params_datetime, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertTrue(self.look_for_string_in_link_header(link_header, "next"), "Link-header did not contain a next entryfor first memento")
+
+	def test026_next_equals_last_for_first_cset_when_two_exist(self):
+		r = requests.get(self.apiURI, params=self.params_datetime, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'next')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		datetime_str2 = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'last')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, datetime_str2 , "next and last entry were not the same for first memento, when there are two mementos")
 
 
 
@@ -353,7 +450,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a changeset")
 
 	def test104_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# two keys in repo
 		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
@@ -376,7 +473,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),4, "pushing ttl with existing key on existing repo did not create a changeset")
 
 	def test114_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# two keys in repo
 		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
 
@@ -400,7 +497,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),5, "pushing xml with new key on existing repo did not create a changeset")
 
 	def test124_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
@@ -419,7 +516,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),6, "pushing xml with existing key on existing repo did not create a changeset")
 
 	def test134_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
 
@@ -518,22 +615,19 @@ class Authorized(unittest.TestCase):
 
 	# DELETE before a delete prepones the time of the deletion
 	def test180_get_content_of_key_before_delete(self):
-		uploadDateString = "2013-07-14-10:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		params_datetime = {'key':self.key,'datetime':self.uploadDateString5}
 		r = requests.get(self.apiURI, params=params_datetime)
 		self.assertEqual(r.text, self.payload2, "content of resource right before delete is not the right one")
 
 	def test181_delete_right_before_delete(self):
 		# deletes the delete after it and sets the new delete
-		uploadDateString = "2013-07-14-10:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		params_datetime = {'key':self.key,'datetime':self.uploadDateString5}
 		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
 		self.assertEqual(r.status_code, 200, "DELETE with timestamp right before delete does not return 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test182_get_delete_right_before_delete(self):
 		# deletes the delete after it and sets the new delete
-		uploadDateString = "2013-07-14-10:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		params_datetime = {'key':self.key,'datetime':self.uploadDateString5}
 		r = requests.get(self.apiURI, params=params_datetime)
 		self.assertEqual(r.status_code, 404, "GET with timestamp at new delete does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
@@ -548,15 +642,13 @@ class Authorized(unittest.TestCase):
 	# DELETE after a delete does not do anything because resource is already deleted
 	def test185_delete_right_after_delete(self):
 		# the new delte should be discarded
-		uploadDateString = "2013-07-14-20:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		params_datetime = {'key':self.key,'datetime':self.uploadDateString5a}
 		r = requests.delete(self.apiURI, params=params_datetime, headers=self.header)
 		self.assertEqual(r.status_code, 200, "DELETE with timestamp inbetween does not return 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
 	def test186_get_delete_after_delete_right_after_delete(self):
 		# resource already deleted before, so still should be 404
-		uploadDateString = "2013-07-14-10:00:00"
-		params_datetime = {'key':self.key,'datetime':uploadDateString}
+		params_datetime = {'key':self.key,'datetime':self.uploadDateString5}
 		r = requests.get(self.apiURI, params=params_datetime)
 		self.assertEqual(r.status_code, 404, "GET with timestamp at new delete after deleting after it does not respond with 404\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 
@@ -658,20 +750,206 @@ class Authorized(unittest.TestCase):
 		r = requests.put(self.apiURI, params=self.params_datetime4, headers=self.header, data=self.payload3)
 		self.assertEqual(r.status_code, 200, "replacing an existing revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
 	
+	def test251_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "inserting on an existing repo after last revision did not create a blob")
+
+	def test252_number_of_changesets_not_changed(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),12, "inserting on an existing repo after last revision did not create a changeset")
 
 
 
+	def test260_get_delta_of_revision_without_timestamp(self):
+		# shall return the delta of the last reveision
+		r = requests.get(self.apiURI, params=self.params_key_delta, headers=self.header)
+		delta_string = "A "+ self.payload3 +"\nD "+ self.payload
+		self.assertEqual(r.text, delta_string)
 
+
+	def test261_get_delta_of_revision_with_timestamp(self):
+		r = requests.get(self.apiURI, params=self.params_datetime_delta, headers=self.header)
+		lines = self.payload2.splitlines()
+		delta_string = ""
+		for line in lines:
+			delta_string += "A " + line + "\n"
+		delta_string += "D "+ self.payload3
+		self.assertEqual(r.text, delta_string)
+
+
+	def test262_get_delta_between_two_non_delete_revisions_with_timestamp(self):
+		# if delta param is timestamp a delte is calculated between to timestamps
+		r = requests.get(self.apiURI, params={'key': self.key, 'datetime': self.uploadDateString4, 'delta': self.uploadDateString}, headers=self.header)
+		lines = self.payload2.splitlines()
+		delta_string = "A "+ self.payload3
+		for line in lines:
+			delta_string += "\nD " + line
+		self.assertEqual(r.text, delta_string)
+
+	def test263_get_delta_between_two_delete_revisions_with_timestamps_unordered(self):
+		r = requests.get(self.apiURI, params={'key': self.key, 'datetime': self.uploadDateString, 'delta': self.uploadDateString4}, headers=self.header)
+		lines = self.payload2.splitlines()
+		delta_string = "A "+ self.payload3
+		for line in lines:
+			delta_string += "\nD " + line
+		self.assertEqual(r.text, delta_string)
+	
+	def test264_get_delta_between_revisions_with_same_data(self):
+		r = requests.get(self.apiURI, params={'key': self.key, 'datetime': self.uploadDateString4, 'delta': self.uploadDateString0}, headers=self.header)
+		self.assertEqual(r.text, "")
+
+	def test265_get_delta_between_two_non_delete_revisions_without_timestamp(self):
+		r = requests.get(self.apiURI, params={'key': self.key, 'delta': self.uploadDateString}, headers=self.header)
+		lines = self.payload2.splitlines()
+		delta_string = "A "+ self.payload3
+		for line in lines:
+			delta_string += "\nD " + line
+		self.assertEqual(r.text, delta_string)
+
+	def test266_get_delta_after_delete(self):
+		r = requests.get(self.apiURI, params={'key': self.key, "datetime": self.uploadDateString4, 'delta': "true"}, headers=self.header)
+		delta_string = "A "+ self.payload3
+		self.assertEqual(r.text, delta_string)
+	
+	def test267_get_delta_of_delete(self):
+		r = requests.get(self.apiURI, params={'key': self.key, 'datetime': self.uploadDateString5, 'delta': "true"}, headers=self.header)
+		lines = self.payload2.splitlines()
+		delta_string = "D " + lines[0]+ "\n" + "D " + lines[1]
+		self.assertEqual(r.text, delta_string)
+
+	def test268_get_delta_between_non_delete_revision_with_timestamp_and_delete(self):
+		r = requests.get(self.apiURI, params={'key': self.key, 'datetime': self.uploadDateString0, 'delta': self.uploadDateString5}, headers=self.header)
+		delta_string = "D "+ self.payload3
+		self.assertEqual(r.text, delta_string)
+		
+	def test269_get_delta_of_first_revision(self):
+		r = requests.get(self.apiURI, params={'key': self.key, "datetime": self.uploadDateString0, 'delta': "true"}, headers=self.header)
+		delta_string = "A "+ self.payload3
+		self.assertEqual(r.text, delta_string)
+
+
+
+	def test280_get_delta_between_two_delete_revisions_with_timestamp(self):
+		time.sleep(1)
+		rd = requests.delete(self.apiURI, params=self.params_key, headers=self.header)
+		r = requests.get(self.apiURI, params={'key': self.key, 'delta': self.uploadDateString5}, headers=self.header)
+		self.assertEqual(r.text, "")
+
+	def test281_number_of_blobs_not_changed(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "deleting after everything did create a blob")
+
+	def test282_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),13, "deleting after everything did not create a changeset")
+
+
+
+	def test_290_put_same_data_than_before_delete(self):
+		time.sleep(1)
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.payload3)
+		self.assertEqual(r.status_code, 200, "inserting on an existing repo after last revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test_291_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),11, "pushing after everything did not create a blob")
+
+	def test_292_number_of_changesets_increased(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),14, "pushing after everything did not create a changeset")
+
+
+
+	def test_300_head_request_without_timestamp_for_latest_resource_does_not_contain_next(self):
+		r = requests.head(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertFalse(self.look_for_string_in_link_header(link_header, "next"))
+		
+
+	def test_301_first_equals_first_cset_for_last_memento(self):
+		r = requests.head(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'first')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString0 , "first entry in link-header was not the first one")
+
+
+	def test_302_next_in_link_header_is_next_for_memento_inbetween(self):
+		r = requests.head(self.apiURI, params=self.params_datetime5, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'next')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString4 , "next entry in link-header of head-request was not the next one")
+
+	def test_302_prev_in_link_header_is_prev_for_memento_inbetween(self):
+		r = requests.head(self.apiURI, params=self.params_datetime5, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'prev')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString , "prev entry in link-header of head-request was not the prev one")
+
+	def test_302_first_in_link_header_is_first_for_memento_inbetween(self):
+		r = requests.head(self.apiURI, params=self.params_datetime5, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'first')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		self.assertEqual(datetime_str, self.uploadDateString0 , "first entry in link-header of head-request was not the first one")
+
+
+	# timemap is contained
+
+
+	def test_310_delete_revision_between_same_data(self):
+		# deletes revision between two revisions that have the same data. 
+		# after that there are two revisions with same data behind each other. 
+		# tailr shall delete the second one, because resource has been existing since first one
+
+		rg = requests.get(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(rg.headers['Link'])
+		datetime_str = datetime.datetime.strptime(self.get_datetime_for_memento_rel(link_header, 'prev')[0], '%a, %d %b %Y %H:%M:%S GMT').strftime("%Y-%m-%d-%H:%M:%S")
+		r = requests.delete(self.apiURI, params={'key': self.key, 'datetime':datetime_str, 'update': "true"}, headers=self.header)
+		self.assertEqual(r.status_code, 200, "deleting a delete-revision does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+	
+	def test_311_number_of_blobs_decreased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),10, "deleting revision, so that two with same data follow each other did not delete blob of following revision")
+
+	def test_312_number_of_changesets_decreased_by_two(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),12, "deleting revision, so that two with same data follow each other did not delete changesets of deleted revision and of following revision")
+
+
+	# timegate is given and right
+	def test_320_timegate_set_in_link_header(self):
+		r = requests.head(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertEqual(self.get_key_for_value_from_link_header(link_header, "timegate"), self.apiURI+"?key="+self.key, "timegate was not set or not right in link-header")
+
+	def test_321_timemap_set_in_link_header(self):
+		r = requests.head(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertEqual(self.get_key_for_value_from_link_header(link_header, "timemap"), self.apiURI+"?key="+self.key+"&timemap=true", "timemap was not set or not right in link-header")
+
+	def test_321_original_set_in_link_header(self):
+		r = requests.head(self.apiURI, params=self.params_key, headers=self.header)
+		link_header = parse_link_header(r.headers['Link'])
+		self.assertEqual(self.get_key_for_value_from_link_header(link_header, "original"), self.key, "original was not set or not right in link-header")
+	
+
+
+
+	def test_330_put_empty_payload(self):
+		r = requests.put(self.apiURI, params=self.params_key, headers=self.header, data=self.empty_payload)
+		self.assertEqual(r.status_code, 200, "putting empty payload does not return httpcode 200\n"+"Statuscode was instead: "+str(r.status_code)+"\nHTTP-reason was: "+r.reason)
+
+	def test_331_number_of_blobs_increased(self):
+		self.assertEqual(self.numberOfBlobsForRepo(self.repo),11, "dputting empty payload did not create a blob")
+
+	def test_332_number_of_changesets_increased_by_two(self):
+		self.assertEqual(self.numberOfCSetsForRepo(self.repo),13, "dputting empty payload did not create a changeset")
+
+	def test_333_get_content_after_empty_put(self):
+		r = requests.get(self.apiURI, params=self.params_key)
+		self.assertEqual(r.text, self.empty_payload, "GET memento after empty push returns the wrong memento. Was:\n"+r.text+"\nshould be:\n"+self.empty_payload)
+	
+	# TODO Tests
+	# test commit messages
 
 	# TODO test for more facts about deleting a revision
 	# update-delete without ts shall not create a del-cset
+	# TODO delete mit update=true zu einem zeitpunkt, an dem keine revision existiert, soll kein delete erzeugen
 
 	# TODO test other return formats 
 
 	# TODO check if snapshots and deltas are created as wanted, somehow force a second snapshot after initial one
-
-
-	# TODO put with wrong format
 
 
 	def test780_get_index_for_non_existing_user(self):

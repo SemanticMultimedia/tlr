@@ -63,6 +63,10 @@ class AboutHandler(BaseHandler):
     def get(self):
         self.render("home/about.html")
 
+class DocumentationHandler(BaseHandler):
+    def get(self):
+        self.render("home/documentation.html")
+
 class SearchHandler(BaseHandler):
     def get(self):
         query = tornado.escape.url_unescape(self.get_argument("q", ""))
@@ -162,11 +166,10 @@ class RepoHandler(BaseHandler):
             elif key and timemap:
                 self.render("repo/history.html", repo=repo, key=key)
             elif index:
-                cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).alias("cs"))
+                cs = (CSet.select(fn.distinct(CSet.hkey)).where((CSet.repo == repo) & (CSet.time <= ts)).alias("cs"))
                 key_count = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id))).count()
 
                 page = int(self.get_query_argument("page", "1"))
-
 
                 hm = revision_logic.get_repo_index(repo, ts, page)
                 

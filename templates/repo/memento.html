@@ -61,8 +61,12 @@
         $viewer = $('<div class="panel panel-default"><div class="panel-heading"><a href="{{ web_url }}?key={{ key }}&timemap=true"><h4 class="panel-title">{{ key }}</h4></a></div></div>');
         $viewer.append('<div class="panel-body"><small>on ' + mmt.format('LLL') + '<span class="pull-right text-muted">' + mmt.fromNow() + '</span></small>{% if commit_message %}<div class="commit-message"><i>{{ commit_message }}</i></div>{% end %}</div>');
         $code = $('<code></code>');
-        $code.text(data.split('\n').sort().join('\n'));
-
+        if (data && data != "") {
+          $code.text(data.split('\n').sort().join('\n'));
+        } 
+        else {
+          $code.text('This resource is empty.')
+        }
         $pre = $('<pre class="nq-view"></pre>');
         $pre.append($code);
 
@@ -71,8 +75,14 @@
       },
     error: function(xhr, ajaxOptions, thrownError) {
       if(xhr.status==404) {
+        var $viewer, isodate
+        isodate = '{{ datetime }}';
+        isodate = isodate.substr(0, 10) + ' ' + isodate.substr(11);
+        mmt = moment(isodate);
+
         $viewer = $('<div class="panel panel-default"><div class="panel-heading"><a href="{{ web_url }}?key={{ key }}&timemap=true"><h4 class="panel-title">{{ key }}</h4></a></div></div>');
         $viewer.append('<div class="panel-body"><h4>404</h4><p>'+thrownError+'</p></div>');
+        $viewer.append('<div class="panel-body"><small>on ' + mmt.format('LLL') + '<span class="pull-right text-muted">' + mmt.fromNow() + '</span></small>{% if commit_message %}<div class="commit-message"><i>{{ commit_message }}</i></div>{% end %}</div>');
         $('#mm-target').html($viewer);
       }
     }

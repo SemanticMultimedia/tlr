@@ -320,6 +320,9 @@ pre > code {
   text-align: center;
 }
 
+.align-center {
+  text-align: center;
+}
 .repo-head .repo-icon {
   margin-left: .25em;
   position: relative;
@@ -364,4 +367,35 @@ pre.nq-view {
   margin: 10px 0 10px;
   border-left: 5px solid #eee;
   background-color: #fbfbfb
+}
+.description {
+  padding: 20px 10px 10px 20px;
+  margin: 10px 0 10px;
+  border-left: 5px solid #ddd;
+  background-color: #f0f0f0;
+}
+.intended {
+  margin-left: 2em;
+}
+.quote {
+  margin-top: 20px;
+  color: #707070;
+}
+
+/*Nestes ordered lists*/
+ol {
+    counter-reset: item;
+}
+
+ol > li {
+    counter-increment: item;
+}
+
+ol ol > li {
+    display: block;
+}
+
+ol ol > li:before {
+    content: counters(item, ".") ". ";
+    margin-left: -20px;
 }

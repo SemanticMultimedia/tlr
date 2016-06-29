@@ -7,6 +7,7 @@ routes = [
     url(r"/", handlers.web.HomeHandler, name="web:home"),
     url(r"/about", handlers.web.AboutHandler, name="web:about"),
     url(r"/statistic", handlers.web.StatisticHandler, name="web:statistic"),
+    url(r"/documentation", handlers.web.DocumentationHandler, name="web:documentation"),
     url(r"/statistic/users", handlers.web.StatisticHandler, name="web:statistic"),
     url(r"/search", handlers.web.SearchHandler, name="web:search"),
     url(r"/join", handlers.web.JoinHandler, name="web:join"),

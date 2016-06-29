@@ -167,7 +167,10 @@ class RepoHandler(BaseHandler):
                 raise HTTPError(reason="Invalid format of datetime param", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
-            ts = date(datestr, RFC1123DATEFMT)
+            try:
+                ts = date(datestr, RFC1123DATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime in Header-Field Accept-Datetime ", status_code=400)
         else:
             ts = now()
 
@@ -203,7 +206,7 @@ class RepoHandler(BaseHandler):
 
         if not header_only:
             self.set_header("Content-Type", "application/n-quads")
-        self.set_header("Vary", "accept-datetime")
+            self.set_header("Vary", "accept-datetime")
 
         chain = revision_logic.get_chain_at_ts(repo, key, ts)
         if len(chain) == 0:
@@ -297,7 +300,8 @@ class RepoHandler(BaseHandler):
             
             self.set_header("Content-Type", "text/plain")
             self.write(join(added, "\n"))
-            self.write("\n")
+            if added and deleted:
+                self.write("\n")
             self.write(join(deleted, "\n"))
 
 
@@ -313,7 +317,8 @@ class RepoHandler(BaseHandler):
         self.set_header("Vary", "accept-datetime")
         self.set_header("Content-Type", "text/plain")
         self.write(join(added, "\n"))
-        self.write("\n")
+        if added and deleted:
+            self.write("\n")
         self.write(join(deleted, "\n"))
 
     def __get_timemap(self, repo, key, header_only=False):
@@ -392,16 +397,45 @@ class RepoHandler(BaseHandler):
     def __get_index(self, repo, ts):
         # Generate an index of all URIs contained in the dataset at the
         # provided point in time or in its current state.
-
         self.set_header("Vary", "accept-datetime")
-        self.set_header("Content-Type", "text/plain")
+
+        accept = self.request.headers.get("Accept", "")
 
         page = int(self.get_query_argument("page", "1"))
-
         hm = revision_logic.get_repo_index(repo, ts, page)
+        
+        if "text/plain" in accept:
+            self.set_header("Content-Type", "text/plain")
+            for h in hm:
+                self.write(h.val + "\n")
+        elif "application/json" in accept or "*/*" in accept:
+            self.set_header("Content-Type", "application/json")
+            repo_url = (self.request.protocol + "://" + self.request.host + "/" + repo.user.name + "/" + repo.name)
 
-        for h in hm:
-            self.write(h.val + "\n")
+            first = None
+            try:
+                first = hm.next()
+            except StopIteration:
+                # No keys for repo
+                # No need to raise an error, just return empty list in json
+                pass
+
+            self.write('{"username": ' + json_encode(repo.user.name))
+            self.write(', "repository": '+json_encode(repo.name))
+            self.write(', "keys": {"list":[')
+
+            m = ('{{"key": "{0}", "uri": "'+repo_url+'?key={0}"}}')
+            if first:
+                self.write(m.format(first.val))
+            for h in hm:
+                self.write("," + m.format(h.val))
+            self.write(']}')
+            self.write('}')
+
+        # TODO information of number of all pages
+
+
+
 
 
     def __get_next_memento(self, repo, key, ts):
@@ -432,6 +466,7 @@ class RepoHandler(BaseHandler):
         fmt = self.request.headers.get("Content-Type", "application/n-triples")
         key = self.get_query_argument("key", None)
         commit_message = self.get_query_argument("m", None)
+
         # force = self.get_query_argument("force", None)
         # replace = self.get_query_argument("replace", None)
 
@@ -572,6 +607,7 @@ class RepoHandler(BaseHandler):
         key = self.get_query_argument("key")
         update = self.get_query_argument("update", "false") == "true"
         repo = revision_logic.get_repo(username, reponame)
+        commit_message = self.get_query_argument("m", None)
 
         if username != self.current_user.name:
             raise HTTPError(reason="Unauthorized: Unowned Repo", status_code=403)
@@ -596,3 +632,6 @@ class RepoHandler(BaseHandler):
                 revision_logic.save_revision_delete(repo, key, ts)
             except LookupError:
                 raise HTTPError(reason="Resource does not exist at given time.", status_code=404)
+            else:
+                if commit_message:
+                    revision_logic.add_commit_message(repo, key, ts, commit_message.replace('\n', '. ').replace('\r', '. '))
