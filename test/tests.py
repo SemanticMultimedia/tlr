@@ -130,6 +130,7 @@ class Authorized(unittest.TestCase):
 	header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType_ntriples}
 	header_ttl = {'Authorization':"token "+tailrToken, 'Content-Type':"text/turtle"}
 	header_xml = {'Authorization':"token "+tailrToken, 'Content-Type':"application/rdf+xml"}
+	header_index = {'Accept':"text/plain"}
 	apiURI = "http://localhost:5000/api/"+userName+"/"+repoName
 	apiURI2 = "http://localhost:5000/api/user2/repo2"
 	userURI = "http://localhost:5000/api/"+userName
@@ -449,7 +450,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),3, "pushing ttl with new key on existing repo did not create a changeset")
 
 	def test104_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# two keys in repo
 		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
@@ -472,7 +473,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),4, "pushing ttl with existing key on existing repo did not create a changeset")
 
 	def test114_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# two keys in repo
 		self.assertEqual(len(r.text.splitlines()), 2, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
 
@@ -496,7 +497,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),5, "pushing xml with new key on existing repo did not create a changeset")
 
 	def test124_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing new key")
 
@@ -515,7 +516,7 @@ class Authorized(unittest.TestCase):
 		self.assertEqual(self.numberOfCSetsForRepo(self.repo),6, "pushing xml with existing key on existing repo did not create a changeset")
 
 	def test134_get_repo_index(self):
-		r = requests.get(self.apiURI, params=self.params_index)
+		r = requests.get(self.apiURI, params=self.params_index, headers=self.header_index)
 		# three keys in repo
 		self.assertEqual(len(r.text.splitlines()), 3, "wrong number of keys in repo (returned via GET index page of repo) after pushing on existing key")
 

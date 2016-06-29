@@ -405,7 +405,11 @@ class RepoHandler(BaseHandler):
         page = int(self.get_query_argument("page", "1"))
         hm = revision_logic.get_repo_index(repo, ts, page)
         
-        if "application/json" in accept or "*/*" in accept:
+        if "text/plain" in accept:
+            self.set_header("Content-Type", "text/plain")
+            for h in hm:
+                self.write(h.val + "\n")
+        elif "application/json" in accept or "*/*" in accept:
             self.set_header("Content-Type", "application/json")
             repo_url = (self.request.protocol + "://" + self.request.host + "/" + repo.user.name + "/" + repo.name)
 
@@ -428,10 +432,6 @@ class RepoHandler(BaseHandler):
                 self.write("," + m.format(h.val))
             self.write(']}')
             self.write('}')
-        elif "text/plain" in accept:
-            self.set_header("Content-Type", "text/plain")
-            for h in hm:
-                self.write(h.val + "\n")
 
         # TODO information of number of all pages
 
