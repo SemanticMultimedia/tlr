@@ -298,9 +298,9 @@ class RepoHandler(BaseHandler):
             self.write('{"resource_uri": "'+self.request.protocol+"://"+self.request.host+self.request.uri+'"')
 
             self.write(', "added":')
-            self.write(encoder.encode(added))
+            self.write(encoder.encode(list(added)))
             self.write(', "deleted":')
-            self.write(encoder.encode(deleted))
+            self.write(encoder.encode(list(deleted)))
 
             self.write('}')
         else:
