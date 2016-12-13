@@ -17,7 +17,7 @@
       </div>
       <div class="list-group">
         {% for repo in user.repos %}
-          {% if repo.private and current_user and user.name == current_user.name %}
+          {% if not repo.private or (repo.private and current_user and user.name == current_user.name) %}
             <a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="list-group-item repo-item">
               <div class="repo-item-icon">
                 <span class="mega-octicon {% if repo.private %}octicon-lock{% else %}octicon-repo{% end %}"></span>
