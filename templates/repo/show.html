@@ -9,7 +9,7 @@
   <div class="col-sm-10 col-sm-offset-1">
     <div class="masthead">
       <div class="repo-head">
-        <h1 class="repo-title"><a href="{{ reverse_url("web:user", repo.user.name) }}" class="repo-title-username">{{ repo.user.name }}</a><span class="path-divider">/</span><a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="repo-title-reponame">{{ repo.name }}</a> <span class="mega-octicon octicon-repo repo-icon"></span></h1>
+        <h1 class="repo-title"><span class="mega-octicon {% if repo.private %}octicon-lock lock-icon{% else %}octicon-repo repo-icon{% end %}"></span> <a href="{{ reverse_url("web:user", repo.user.name) }}" class="repo-title-username">{{ repo.user.name }}</a><span class="path-divider">/</span><a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="repo-title-reponame">{{ repo.name }}</a>{% if repo.private %} <span class="label label-private">Private</span>{% end %}</h1>
         <p class="text-muted">{{ repo.desc }}</p>
       </div>
     </div>
@@ -76,16 +76,23 @@ curl -X DELETE \
       <div class="panel-heading">Memento API</div>
       <div class="panel-body">
         <h4>Reading resource states from {{ repo.name }}</h4>
+
+        {% if repo.private %}<h5><strong>This is a private repository: Only you can access this repository.</strong></h5>{% end %}
+
         <p>Prior states of <em>linked data</em> resources tracked in this repository are accessible through a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a> API.</p>
         <p>
           You can request a certain resource from this repository by specifying its URI in the <code>key</code> query parameter.
           Specify the date and time for the resource state you are interested in by passing an <code>Accept-Datetime</code> HTTP header, for instance:
         </p>
-        <pre><code class="bash">curl -H "Accept-Datetime: Thu, 11 June 2015 09:45:00 GMT" "{{ api_url }}?key=http://..."</code></pre>
+        <pre><code class="bash">curl {% if repo.private %}-H "Authorization: token $TOKEN" \
+  {% end %}-H "Accept-Datetime: Thu, 11 June 2015 09:45:00 GMT" \
+  "{{ api_url }}?key=http://..."</code></pre>
         <p>In order to link to a certain resource state, you may also provide the datetime argument as a query parameter:</p>
-        <pre><code class="bash">curl "{{ api_url }}?key=http://...&datetime=2015-06-11-09:45:00"</code></pre>
+        <pre><code class="bash">curl {% if repo.private %}-H "Authorization: token $TOKEN" \
+  {% end %}"{{ api_url }}?key=http://...&datetime=2015-06-11-09:45:00"</code></pre>
         <p>To find out when a resource was changed, query for the timemap:</p>
-        <pre><code class="bash">curl "{{ api_url }}?key=http://...&timemap=true"</code></pre>
+        <pre><code class="bash">curl {% if repo.private %}-H "Authorization: token $TOKEN" \
+  {% end %}"{{ api_url }}?key=http://...&timemap=true"</code></pre>
         {% if len(hm) > 0 %}
         <p>You can find links to a small sample of resources from this repository below:</p>
         {% else %}
@@ -109,6 +116,33 @@ curl -X DELETE \
     <div class="panel panel-danger">
       <div class="panel-heading">Danger Zone</div>
       <div class="panel-body">
+        <h4>Privacy</h4>
+          <button data-toggle="collapse" data-target="#change_privacy_confirm" class="btn btn-danger btn-xs pull-right">Change privacy</button>
+          <p>This repository is {% if repo.private %}<strong>private</strong>: Only you can access this repository{% else %}<strong>public</strong>: Anybody can access this repository{% end %}.</p>
+          <div id="change_privacy_confirm" class="collapse">
+          <form action="{{ reverse_url("web:edit-repo", repo.user.name, repo.name) }}" method="post">
+            {% module xsrf_form_html() %}
+            <div class="form-checkbox">
+              <label>
+                <input {% if not repo.private %}checked="checked"{% end %} class="js-privacy-toggle" id="repository-private-false" name="private" type="radio" value="false"> Public
+              </label>
+              <span class="mega-octicon octicon-repo repo-icon"> </span>
+              <span class="help-block">Anyone can see contents of this repository. You can commit to this repository.</span>
+            </div>
+            <div class="form-checkbox">
+              <label>
+                <input {% if repo.private %}checked="checked"{% end %} class="js-privacy-toggle" id="repository-private-true" name="private" type="radio" value="true"> Private
+              </label>
+              <span class="mega-octicon octicon-lock lock-icon"> </span>
+              <span class="help-block">Only you can see and commit to this repository.</span>
+            </div>
+            <div class="form-group">
+              <button type="submit" class="btn btn-danger btn-block btn-primary">Update privacy of this repository</button>
+            </div>
+          </form>
+          </div>
+
+        <hr>
         <h4>Delete this repository</h4>
           <button data-toggle="collapse" data-target="#delete_repo_confirm" class="btn btn-danger btn-xs pull-right">Delete this repository</button>
           <p>Once you delete a repository, there is no going back. Please be certain.</p>
@@ -128,7 +162,7 @@ curl -X DELETE \
           <div class="form-group">
             <button type="submit" class="btn btn-danger btn-block btn-primary">I understand the consequences, delete this repository</button>
           </div>
-        </form>
+          </form>
         </div>
       </div>
     </div>

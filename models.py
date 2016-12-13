@@ -16,8 +16,8 @@ class User(Base):
     homepage_url = CharField(default=None, null=True)
     avatar_url = CharField(default=None, null=True)
     email = CharField(default=None, null=True)
-    # salt = CharField(...)
-    # ...
+    salt = CharField(default=None, null=True)
+    password = CharField(default=None, null=True)
 
 class Token(Base):
     id = PrimaryKeyField()
@@ -31,6 +31,7 @@ class Repo(Base):
     user = ForeignKeyField(User, related_name="repos", null=False)
     name = CharField(null=False, index=True)
     desc = CharField(max_length=255)
+    private = BooleanField(default=False, null=False)
 
     class Meta:
         indexes = [(("user", "name"), True)]

@@ -74,7 +74,7 @@ class SearchHandler(BaseHandler):
         if query:
             pattern = "%" + query + "%"
             repos = (Repo.select().join(User).alias("user")
-                .where(Repo.name ** pattern))
+                .where(Repo.name ** pattern, Repo.private == False))
             users = User.select().where(User.name ** pattern)
         else:
             repos = []
@@ -118,74 +118,88 @@ class StatisticHandler(BaseHandler):
             repocount = statistic.get_repo_count()
             resourcecount = statistic.get_resource_count()
             revisioncount = statistic.get_revision_count()
-            self.render("statistic/show.html", title="tailr - Statistics", usercount=usercount, repocount=repocount, resourcecount=resourcecount, revisioncount=revisioncount)
+            self.render("statistic/show.html", title="TailR - Statistics", usercount=usercount, repocount=repocount, resourcecount=resourcecount, revisioncount=revisioncount)
 
 class RepoHandler(BaseHandler):
     def get(self, username, reponame):
         try:
             repo = (Repo.select().join(User).alias("user")
-                .where((User.name == username) & (Repo.name == reponame))
-                .get())
-            title = repo.user.name + "/" + repo.name
-
-            timemap = self.get_query_argument("timemap", "false") == "true"
-            datetime = self.get_query_argument("datetime", None)
-            key = self.get_query_argument("key", None)
-            index = self.get_query_argument("index", "false") == "true"
-
-            if self.get_query_argument("datetime", None):
-                datestr = self.get_query_argument("datetime")
-                try:
-                    ts = date(datestr, QSDATEFMT)
-                except ValueError:
-                    raise HTTPError(reason="Invalid format of datetime param", status_code=400)
-            elif "Accept-Datetime" in self.request.headers:
-                datestr = self.request.headers.get("Accept-Datetime")
-                ts = date(datestr, RFC1123DATEFMT)
+                    .where((User.name == username) & (Repo.name == reponame))
+                    .get())
+            if not repo.private:
+                self._get(repo)
             else:
-                ts = now()
-            if key and not timemap:
-                chain = revision_logic.get_chain_at_ts(repo, key, ts)
-                # use ts of cset instead of now(), to make prev work
-                if len(chain) != 0:
-                    ts = chain[-1].time
-
-                cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
-                cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
-                if cs_prev:
-                    cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
-                else:
-                    cs_prev_str = ""
-                if cs_next:
-                    cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
-                else:
-                    cs_next_str = "" 
-                commit_message = revision_logic.get_commit_message(repo, key, ts)
-
-                self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str, commit_message=commit_message)
-            elif key and timemap:
-                self.render("repo/history.html", repo=repo, key=key)
-            elif index:
-                cs = (CSet.select(fn.distinct(CSet.hkey)).where((CSet.repo == repo) & (CSet.time <= ts)).alias("cs"))
-                key_count = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id))).count()
-
-                page = int(self.get_query_argument("page", "1"))
-
-                hm = revision_logic.get_repo_index(repo, ts, page)
-                
-                self.render("repo/index.html", repo=repo, title=title, key_count=key_count, page_size=revision_logic.INDEX_PAGE_SIZE, hm=hm, current_page=page)
-            else:
-                hm = list(revision_logic.get_repo_index(repo, ts, 1, 5))
-                # cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).limit(5).alias("cs"))
-                # samples = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id)))
-                self.render("repo/show.html", title=title, repo=repo, hm=hm)
+                self._getAuth(repo)
         except Repo.DoesNotExist:
             raise HTTPError(reason="Repo not found.", status_code=404)
+
+    def _getAuth(self, repo):
+        if self.current_user == None or repo.user.name != self.current_user.name:
+            #raise HTTPError(reason="Unauthorized access: third party private repo.", status_code=403)
+            raise HTTPError(reason="Repo not found.", status_code=404)
+        else:
+            self._get(repo)
+
+    def _get(self, repo):
+        title = repo.user.name + "/" + repo.name
+
+        timemap = self.get_query_argument("timemap", "false") == "true"
+        datetime = self.get_query_argument("datetime", None)
+        key = self.get_query_argument("key", None)
+        index = self.get_query_argument("index", "false") == "true"
+
+        if self.get_query_argument("datetime", None):
+            datestr = self.get_query_argument("datetime")
+            try:
+                ts = date(datestr, QSDATEFMT)
+            except ValueError:
+                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+        elif "Accept-Datetime" in self.request.headers:
+            datestr = self.request.headers.get("Accept-Datetime")
+            ts = date(datestr, RFC1123DATEFMT)
+        else:
+            ts = now()
+        if key and not timemap:
+            chain = revision_logic.get_chain_at_ts(repo, key, ts)
+            # use ts of cset instead of now(), to make prev work
+            if len(chain) != 0:
+                ts = chain[-1].time
+
+            cs_prev = revision_logic.get_cset_prev_before_ts(repo, key, ts)
+            cs_next = revision_logic.get_cset_next_after_ts(repo, key, ts)
+            if cs_prev:
+                cs_prev_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_prev.time.strftime(QSDATEFMT)
+            else:
+                cs_prev_str = ""
+            if cs_next:
+                cs_next_str = self.request.protocol + "://" + self.request.host + self.request.path + "?key=" + key + "&datetime=" + cs_next.time.strftime(QSDATEFMT)
+            else:
+                cs_next_str = ""
+            commit_message = revision_logic.get_commit_message(repo, key, ts)
+
+            self.render("repo/memento.html", repo=repo, key=key, datetime=datetime, cs_next_str=cs_next_str, cs_prev_str=cs_prev_str, commit_message=commit_message)
+        elif key and timemap:
+            self.render("repo/history.html", repo=repo, key=key)
+        elif index:
+            cs = (CSet.select(fn.distinct(CSet.hkey)).where((CSet.repo == repo) & (CSet.time <= ts)).alias("cs"))
+            key_count = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id))).count()
+
+            page = int(self.get_query_argument("page", "1"))
+
+            hm = revision_logic.get_repo_index(repo, ts, page)
+
+            self.render("repo/index.html", repo=repo, title=title, key_count=key_count, page_size=revision_logic.INDEX_PAGE_SIZE, hm=hm, current_page=page)
+        else:
+            hm = list(revision_logic.get_repo_index(repo, ts, 1, 5))
+            # cs = (CSet.select(fn.distinct(CSet.hkey)).where(CSet.repo == repo).limit(5).alias("cs"))
+            # samples = (HMap.select(HMap.val).join(cs, on=(HMap.sha == cs.c.hkey_id)))
+            self.render("repo/show.html", title=title, repo=repo, hm=hm)
+
 
     @authenticated
     def delete(self, username, reponame):
         if username != self.current_user.name:
-            raise HTTPError(reason="Unauthorized: Unowned Repo", status_code=403)
+            raise HTTPError(reason="Unauthorized: Not your Repo", status_code=403)
             
         key = self.get_query_argument("key")
         update = self.get_query_argument("update", "false") == "true"
@@ -220,33 +234,49 @@ class CreateRepoHandler(BaseHandler):
     def post(self):
         reponame = self.get_argument("reponame", None)
         desc = self.get_argument("description", None)
+        private = self.get_argument("private", "false") == "true"
         user = self.current_user
         if not reponame:
             self.redirect(self.reverse_url("web:create-repo"))
             return
-        repo = Repo.create(user=user, name=reponame, desc=desc)
+        repo = Repo.create(user=user, name=reponame, desc=desc, private=private)
         self.redirect(self.reverse_url("web:repo", user.name, repo.name))
 
 class DelRepoHandler(BaseHandler):
     @authenticated
     def post(self, username, reponame):
-        user = self.current_user
         verify = self.get_argument("verify", None)
-        logger.info(username)
-        logger.info(reponame)
-        logger.info(verify)
         try:
             repo = revision_logic.get_repo(username, reponame)
             if repo == None:
                 raise HTTPError(reason="Repo not found.", status_code=404)
-            logger.info(repo.name)
+            if username != self.current_user.name:
+                raise HTTPError(reason="Unauthorized delete: third party repo.", status_code=403)
             if (repo.name == verify):
                 revision_logic.remove_repo(repo)
-                self.redirect(self.reverse_url("web:user", user.name))
+                self.redirect(self.reverse_url("web:user", self.current_user.name))
             else:
                 raise HTTPError(501)
         except:
           raise HTTPError(reason="Some exception occured.", status_code=404)
+
+class EditRepoHandler(BaseHandler):
+    @authenticated
+    def post(self, username, reponame):
+        try:
+            repo = revision_logic.get_repo(username, reponame)
+            if repo == None:
+                raise HTTPError(reason="Repo not found.", status_code=404)
+            if username != self.current_user.name:
+                raise HTTPError(reason="Unauthorized edit: third party repo.", status_code=403)
+            else:
+                if self.get_argument("description", None):
+                    repo.desc = self.get_argument("description", None)
+                repo.private = self.get_argument("private", "false") == "true"
+                repo.save()
+                self.redirect(self.reverse_url("web:repo", username, reponame))
+        except:
+            raise HTTPError(reason="Some exception occured.", status_code=404)
 
 class SettingsHandler(BaseHandler):
     @authenticated
@@ -309,7 +339,7 @@ class AuthHandler(BaseHandler):
 
     def get(self):
         if not self.current_user:
-            self.render("auth/new.html", title="Sign in - tailr")
+            self.render("auth/new.html", title="TailR - Sign in")
         else:
             self.redirect("/")
 

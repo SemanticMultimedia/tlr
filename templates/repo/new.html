@@ -18,6 +18,21 @@
         <span class="help-block">You can provide a short description for your repository here.</span>
       </div>
       <hr>
+      <div class="form-checkbox">
+        <label>
+          <input checked="checked" class="js-privacy-toggle" id="repository-private-false" name="private" type="radio" value="false"> Public
+        </label>
+        <span class="mega-octicon octicon-repo repo-icon"> </span>
+        <span class="help-block">Anyone can see contents of this repository. You can commit to this repository.</span>
+      </div>
+      <div class="form-checkbox">
+        <label>
+          <input class="js-privacy-toggle" id="repository-private-true" name="private" type="radio" value="true"> Private
+        </label>
+        <span class="mega-octicon octicon-lock lock-icon"> </span>
+        <span class="help-block">Only you can see and commit to this repository.</span>
+      </div>
+      <hr>
       <div class="form-group">
         <button type="submit" class="btn btn-success">Create repository</button>
       </div>

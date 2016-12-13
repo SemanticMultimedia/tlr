@@ -9,7 +9,7 @@
   <div class="col-sm-10 col-sm-offset-1">
     <div class="masthead">
       <div class="repo-head">
-        <h1 class="repo-title"><a href="{{ reverse_url("web:user", repo.user.name) }}" class="repo-title-username">{{ repo.user.name }}</a><span class="path-divider">/</span><a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="repo-title-reponame">{{ repo.name }}</a> <span class="mega-octicon octicon-repo repo-icon"></span></h1>
+        <h1 class="repo-title"><span class="mega-octicon {% if repo.private %}octicon-lock lock-icon{% else %}octicon-repo repo-icon{% end %}"></span> <a href="{{ reverse_url("web:user", repo.user.name) }}" class="repo-title-username">{{ repo.user.name }}</a><span class="path-divider">/</span><a href="{{ reverse_url("web:repo", repo.user.name, repo.name) }}" class="repo-title-reponame">{{ repo.name }}</a>{% if repo.private %} <span class="label label-private">Private</span>{% end %}</h1>
         <p class="text-muted">{{ repo.desc }}</p>
       </div>
     </div>

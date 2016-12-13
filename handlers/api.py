@@ -52,6 +52,13 @@ class BaseHandler(RequestHandler):
 
     def get_current_user(self):
         try:
+            # use secure cookie from web interface for requests from there
+            uid = self.get_secure_cookie("uid")
+            if uid:
+                user = User.get(User.id == uid) if uid else None
+                return user
+
+            # use token for requests from other clients (e.g. curl)
             header = self.request.headers["Authorization"]
             method, value = header.split(" ")
             if method == "token":
@@ -107,7 +114,6 @@ class UserHandler(BaseHandler):
             # No repos for user
             # No need to raise an error, just return empty list in json
             pass
-            
 
         accept = self.request.headers.get("Accept", "*/*")
         user_url = (self.request.protocol + "://" + self.request.host)
@@ -139,7 +145,6 @@ class RepoHandler(BaseHandler):
 # Vary: accept-datetime --> timegate used content-negotiation
 # timegate-responses contain: original, timemap, from, until, 
 
-
     """Processes repository calls: Push, timegate, memento, timemap etc."""
     def get(self, username, reponame):
         timemap = self.get_query_argument("timemap", "false") == "true"
@@ -152,7 +157,7 @@ class RepoHandler(BaseHandler):
             try:
                 delta_ts = date(datestr, QSDATEFMT)
             except ValueError:
-                raise HTTPError(reason="Invalid format of delta timestamp", status_code=400)
+                raise HTTPError(reason="Invalid format of delta timestamp.", status_code=400)
         else:
             delta_ts = None
 
@@ -164,19 +169,23 @@ class RepoHandler(BaseHandler):
             try:
                 ts = date(datestr, QSDATEFMT)
             except ValueError:
-                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+                raise HTTPError(reason="Invalid format of datetime param.", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
             try:
                 ts = date(datestr, RFC1123DATEFMT)
             except ValueError:
-                raise HTTPError(reason="Invalid format of datetime in Header-Field Accept-Datetime ", status_code=400)
+                raise HTTPError(reason="Invalid format of datetime in Header-Field Accept-Datetime.", status_code=400)
         else:
             ts = now()
 
         #load repo
         repo = revision_logic.get_repo(username, reponame)
         if repo == None:
+            raise HTTPError(reason="Repo not found.", status_code=404)
+
+        if repo.private and (self.current_user == None or username != self.current_user.name):
+            #raise HTTPError(reason="Unauthorized access: third party private repo.", status_code=403)
             raise HTTPError(reason="Repo not found.", status_code=404)
 
         if key and not timemap and not delta and not delta_ts:
@@ -312,7 +321,7 @@ class RepoHandler(BaseHandler):
             else:
                 added, deleted = revision_logic.get_delta_between_mementos(repo, key, delta_ts, ts)
         except ValueError:
-            raise HTTPError(reason="No delta possible for given timestamps", status_code=400)
+            raise HTTPError(reason="No delta possible for given timestamps.", status_code=400)
 
         self.set_header("Vary", "accept-datetime")
         self.set_header("Content-Type", "text/plain")
@@ -435,9 +444,6 @@ class RepoHandler(BaseHandler):
         # TODO information of number of all pages
 
 
-
-
-
     def __get_next_memento(self, repo, key, ts):
         return revision_logic.get_cset_next_after_ts(repo, key, ts)
 
@@ -471,7 +477,7 @@ class RepoHandler(BaseHandler):
         # replace = self.get_query_argument("replace", None)
 
         if username != self.current_user.name:
-            raise HTTPError(403)
+            raise HTTPError(reason="Unauthorized update: third party repo.", status_code=403)
         if not key:
             raise HTTPError(reason="Missing argument 'key'.", status_code=400)
 
@@ -520,7 +526,7 @@ class RepoHandler(BaseHandler):
             try:
                 ts = date(datestr, QSDATEFMT)
             except ValueError:
-                raise HTTPError(reason="Invalid format of datetime param", status_code=400)
+                raise HTTPError(reason="Invalid format of datetime param.", status_code=400)
         elif "Accept-Datetime" in self.request.headers:
             datestr = self.request.headers.get("Accept-Datetime")
             ts = date(datestr, RFC1123DATEFMT)
@@ -610,7 +616,7 @@ class RepoHandler(BaseHandler):
         commit_message = self.get_query_argument("m", None)
 
         if username != self.current_user.name:
-            raise HTTPError(reason="Unauthorized: Unowned Repo", status_code=403)
+            raise HTTPError(reason="Unauthorized update: third party repo.", status_code=403)
         if not key:
             raise HTTPError(reason="Missing argument 'key'.", status_code=400)
         if repo == None:
@@ -626,7 +632,7 @@ class RepoHandler(BaseHandler):
                 self.finish()
                 return
             else:
-                raise HTTPError(reason="No memento exists for given timestamp. When 'update' is set this must apply", status_code=400)
+                raise HTTPError(reason="No memento exists for given timestamp, when 'update' is set this must apply.", status_code=400)
         else:
             try:
                 revision_logic.save_revision_delete(repo, key, ts)

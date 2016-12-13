@@ -10,6 +10,10 @@
         <ol>
             <li><a href="#general">General</a></li>
             <li><a href="#repositories_and_resources">Repositories and Resources</a></li>
+            <ol>
+                <li><a href="#private_repositories">Private Repositories</a></li>
+                <li><a href="#dataset_versioning">Dataset Versioning</a></li>
+            </ol>
             <li><a href="#memento_api">Memento API</a></li>
                 <ol>
                     <li><a href="#priorversions">Accessing prior versions</a></li>
@@ -22,6 +26,10 @@
                     <li><a href="#deleting">Deleting</a></li>
                 </ol>
             <li><a href="#authentication">Authentication</a></li>
+            <ol>
+                <li><a href="#token">Token</a></li>
+                <li><a href="#secure_cookie">Secure Cookie</a></li>
+            </ol>
         </ol>
     </div>
   </div>
@@ -38,43 +46,53 @@
     <div class="documentation">
         <a name="general"></a>
         <h2>General</h2>
-            <p><em>Tailr</em> is a revisioning system for Linked Data built with the <a href="http://www.tornadoweb.org/en/stable/">Tornado Framework.</a> It hence allows many concurrent and long-lasting connections. You can therefore make use of HTTP-libraries of your choice, that allow sending concurrent requests.</p>
+            <p><em>TailR</em> is a revisioning system for Linked Data built with the <a href="http://www.tornadoweb.org/en/stable/">Tornado Framework.</a> It hence allows many concurrent and long-lasting connections. You can therefore make use of HTTP-libraries of your choice, that allow sending concurrent requests.</p>
     </div>
     <div class="documentation">
         <a name="repositories_and_resources"></a>
         <h2>Repositories and Resources</h2>
-    	   <p>A user can create and own repositories. A repository can contain multiple resources, which are identified by a <code>key</code>. </p>
+    	   <p>A user can create and own repositories. A repository can contain multiple resources, which are identified by a <code>key</code>.</p>
     	   <p>A certain resource from a repository can be accessed by specifying its URI in the <code>key</code> query parameter. </p> 
-    	   <p>Tailr uses the following uri-schema for its web interface:</p>
+    	   <p><em>TailR</em> uses the following uri-schema for its web interface:</p>
     	   <pre><code class="bash">{{ base_url }}/USERNAME/REPONAME?key=http://...</code></pre>
     	   <p>and the following for accessing resources via the API:</p>
     	   <pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...</code></pre>
            <h4>Resources of Repositories</h4>
-           <p>To recieve a list of the resources that a repository contains, use the <code>index</code> query parameter.</p>
+           <p>To receive a list of the resources that a repository contains, use the <code>index</code> query parameter.</p>
            <pre><code class="bash">GET {{ api_url }}/USERNAME/REPONAME?index=true&amp;page=4</code></pre>
            <p>Supported return formats are <code>application/json</code> (default) and <code>text/plain</code>. These can be requestd in the <i>Accept</i>-Header-field</p>
            <pre><code class="bash">Accept: "type/subtype"</code></pre></p>
            <h5><code>index</code></h5>
                 <div class="description intended">
-                    <p>Can be set to true to recieve a list of resources contained in a repo. </p>
+                    <p>Can be set to true to receive a list of resources contained in a repository.</p>
                     <p>Uses pagination (1000 resources/page).</p>
-                    <p>Pages are selected through an additional <code>&amp;page</code> parameter</p>
+                    <p>Pages are selected through an additional <code>&amp;page</code> parameter.</p>
                 </div>
             <p>You can also access past states of the users indexpage. This is done via the <code>datetime</code> query parameter. </p>
             <h5><code>datetime</code> <em>(optional)</em></h5>
                 <div class="description intended">
                     <p>Parameter to specify a point in time. </p>
-                    <p><em>Tailr</em> will reconstruct the state of the users indexpage at that time.</p>
+                    <p><em>TailR</em> will reconstruct the state of the users index page at that time.</p>
                 </div>
             <h4>Repositories of users</h4>
-            <p>To recieve a list of all repositories of a user as json you can query the api for the user:</p>
+            <p>To receive a list of all repositories of a user as json you can query the api for the user:</p>
             <pre><code class="bash">GET {{ api_url }}/USERNAME</code></pre>
+        <a name="private_repositories"></a>
+        <h3>Private Repositories <span class="mega-octicon octicon-lock lock-icon"></span></h3>
+        <p>When a repository is set to be <em>private</em>, only the owner can access the repository and the contained resource histories. Therefore, <a href="#authentication">authentication</a> is needed for requests on the <a href="#memento_api">Memento API</a>.</p>
+        <p>Private repositories are marked by a lock symbol and a <span class="label label-private">Private</span> label.</p>
+        <a name="dataset_versioning"></a>
+        <h3>Dataset Versioning</h3>
+        <p><em>TailR</em>s intention was to version resources from the Web of Data, but it is applicable likewise to larger RDF datasets.</p>
+        <p>Datasets can contain billions of triples. It is very expensive to compare and manage consecutive versions of such large datasets.</p>
+        <p>In order to version such large datasets with <em>TailR</em> they need to be split up into smaller fragments, e.g. as they would be provided on the Web of Data in form of resource descriptions. Each fragment receives its own <code>key</code>.</p>
+        <p>Therefore, the user has to decide by which criteria the dataset can be split up. We recommend to not exceed 10.000 (just a long guess) triples per key. To give you some examples: we are versioning the <a href="http://dbpedia.org/">DBpedia</a> dataset with one key per subject resource, parts of <a href="http://live.dbpedia.org/">DBpedia Live</a> with one key per resource description (key is subject or object), <a href="http://lov.okfn.org/">Linked Open Vocabularies (LOV)</a> with one key per vocabulary definition.</p>
     </div>
     <div class="documentation">
         <a name="memento_api"></a>
         <h2>Memento API</h2>
-        	<p>Tailr implements a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a>-API. You can access prior states of a resource through it. These revisions are called <b>Memento</b>.</p>
-            <p>Tailr supports HTTP-<code>GET</code> and <code>HEAD</code> requests.</p>
+        	<p><em>TailR</em> implements a <a href="https://datatracker.ietf.org/doc/rfc7089/">Memento</a>-API. You can access prior states of a resource through it. These revisions are called <b>Memento</b>.</p>
+            <p><em>TailR</em> supports HTTP-<code>GET</code> and <code>HEAD</code> requests.</p>
         	<p>It thereby follows <i>Pattern 1</i>, where the Original Resource acts as Timegate.</p>
             <p>The return format for accessing a revision is <code>application/n-quads</code>.</p>
             <h5>A Memento-resource consists out of three components. These are:</h5>
@@ -125,7 +143,7 @@
                 </div>
             <a name="headrequests"></a>
             <h3>HEAD-requests</h3>
-            <p>To just recieve the meta-information of a repository that the header contains you can aswell send <code>HEAD</code> requests. This is done against the timegate (itself or with a specific date).</p>
+            <p>To just receive the meta-information of a repository that the header contains you can aswell send <code>HEAD</code> requests. This is done against the timegate (itself or with a specific date).</p>
             <pre><code class="bash">{{ api_url }}/USERNAME/REPONAME?key=http://...(&amp;datetime=2016-06-23-07:25:33)</code></pre>
             <p>The response-header will look like this:</p>
             <pre><code class="bash">HTTP/1.1 200 OK
@@ -150,17 +168,16 @@ Memento-Datetime: Thu, 23 Jun 2016 07:25:36 GMT
 Content-Type: text/html; charset=utf-8
             </code></pre>
             <p>This header is also set in the response to a <code>GET</code> request against the timegate.</p>
-            
 
 
             <a name="furtherinfo"></a>
             <h3>Further information of a resource</h3>
-                <p>Tailr offers a few more informations in addition to the Memento standard.</p>
+                <p><em>TailR</em> offers a few more informations in addition to the Memento standard.</p>
                 <h4>Changed triples of a Revision</h4>
                 <p>It is possible to request the changed triples, the <em>delta</em> of a memento.</p>
                 <p>Analogous to requesting information via the Memento-API the <code>datetime</code>-parameter or alternatively the <code>Accept-Datetime</code> Header-field is used to determine a revision.</p><!--specify? -->
                 <p>The format used to express the changes is the <a href="https://afs.github.io/rdf-patch/">RDF-Patch-Format</a>.</p>
-                <p>Tailr supports two variations:</p>
+                <p><em>TailR</em> supports two variations:</p>
                 <ol>
                     <li>Requesting the delta to the <em>previous</em> memento</li>
                     <li>Requesting the delta to <em>any other</em> memento</li>
@@ -175,7 +192,7 @@ Content-Type: text/html; charset=utf-8
                 <code>?delta=%Y-%m-%d-%H:%M:%S</code>
                 <div class="description intended">
                     <p>Setting the <code>delta</code> parameter to a timestamp of the format<code>%Y-%m-%d-%H:%M:%S</code> (e.g. <code>2015-11-29-23:12:59</code>) will return the delta between the revision that applies to that point of time and the revision specified by the <em>datetime</em> parameter or <em>Accept-Datetime</em> Header-field (or to the current revision if both are left blank).</p>
-                    <p>Tailr will always respond with the delta for the latest of both datetimes. </p>
+                    <p><em>TailR</em> will always respond with the delta for the latest of both datetimes. </p>
                 </div>
         </div>
 
@@ -223,7 +240,7 @@ Content-Type: text/html; charset=utf-8
         	</ol>
         	<h4>1. Marking a resource as deleted:</h4>
         	<p>Works exactly like pushing, except using the HTTP-<code>DELETE</code>-Method.</p>
-            <p><i>Tailr</i> will in this case save a new revision that is of the type <i>Delete</i></p>
+            <p><em>TailR</em> will in this case save a new revision that is of the type <i>Delete</i></p>
     		<h4>2. Deleting a revision:</h4>
     		Also done using the HTTP-<code>DELETE</code>-Method.
     		<h5>HTTP-Params are:</h5>
@@ -242,9 +259,15 @@ Content-Type: text/html; charset=utf-8
         <div class="documentation">
             <a name="authentication"></a>
             <h2>Authentication</h2>
-            <p>Authentication is done via a token, which can be generated at your <a href="{{ base_url }}/settings">Settings Page</a>.</p>
+            <p>Authentication is done via a <em>token</em> or <em>secure cookie</em>.</p>
+            <a name="token"></a>
+            <h3>Token</h3>
+            <p>A token can be generated at your <a href="{{ base_url }}/settings">Settings Page</a>.</p>
             <p>The token must be set in in the <b>Header</b> in the <em>Authorization</em>-Field in the form of: <pre><code class="bash">Authorization: "token: $Token"</code></pre></p>
             <p>Pushing and deleting is currently only allowed on repositories you own.</p>
+            <a name="secure_cookie"></a>
+            <h3>Secure Cookie</h3>
+            <p>A secure cookie is set, when you are signed in the web interface.</p>
         </div>
 	</div>
 </div>

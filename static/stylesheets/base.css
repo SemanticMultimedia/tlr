@@ -60,6 +60,47 @@ body {
   box-shadow: none;
 }
 
+/* custom forms */
+
+.form-checkbox input[type=radio] {
+  float: left;
+  margin: 5px 0 0 -50px;
+  vertical-align: middle;
+}
+
+.form-checkbox span.mega-octicon {
+  float: left;
+  height: 32px;
+  width: 24px;
+  margin: 0 5px 0 25px;
+}
+
+.form-checkbox span.help-block {
+  display: block;
+  margin: 0;
+}
+
+/* custom labels */
+
+.label {
+  display: inline-block;
+  padding: 3px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  border-radius: 2px;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.12);
+
+  vertical-align: middle !important;
+}
+
+.label-private {
+  font-weight: normal;
+  color: #4c4a42;
+  background-color: #ffefc6;
+}
+
 /* custom branding */
 
 .tlr-navbar {
