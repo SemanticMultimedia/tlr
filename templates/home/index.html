@@ -7,11 +7,15 @@
   <form class="form-inline" action="{{ reverse_url("web:search") }}" method="get">
     <input class="form-control input-lg search-input" type="text" name="q" tabindex="1" placeholder="Search users and repositories">
   </form>
-  <div class="stats">
-    <!-- TODO: Rotate stats?  -->
-    <!-- <p class="stat fade in"><span class="counter">12,334,592,091</span> revisions stored</p> -->
-    <!-- <p class="stat fade"><span class="counter">982,876,542</span> resources versioned</p> -->
-    <!-- <p class="stat fade"><span class="counter">25,924</span> repositories created</p> -->
+</div>
+<div class="row news">
+  <div class="col-sm-8 col-sm-offset-2">
+  <div class="alert alert-info">
+    <span class="date">December 13, 2016</span>
+    <h4>New Feature: Private Repositories</h4>
+    <p>The development of <em>TailR</em> is ongoing. We are pleased to annnounce a new major feature: <em>Private Repositories</em>. Private repositories are not visible to the public and can only be accessed by its owner (API authentication is done by the generated tokens as for pushing new data). You can change the privacy settings of your repositories on the respective repository page.</p>
+  </div>
   </div>
 </div>
+
 {% end %}
